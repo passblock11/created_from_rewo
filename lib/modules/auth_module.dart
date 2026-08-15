@@ -3,8 +3,8 @@ import 'package:rewo/rewo.dart';
 import '../auth/password.dart';
 import '../auth/token_service.dart';
 import '../auth/validators.dart';
+import '../database/database.dart';
 import '../database/setup.dart';
-import '../generated/index.dart';
 
 class AuthModule implements RewoModule {
   @override
@@ -12,7 +12,7 @@ class AuthModule implements RewoModule {
 
   @override
   void register(Rewo app) {
-    if (!hasPrisma(app)) {
+    if (!hasDatabase(app)) {
       app.post('/api/auth/signup', (_) async => {
             'error': 'Database not configured',
             'hint': 'Set DATABASE_URL in .env and run dart run bin/migrate.dart',
@@ -45,24 +45,20 @@ class AuthModule implements RewoModule {
 
     validateSignupCredentials(email, password);
 
-    final prisma = ctx.container.resolve<PrismaClient>();
-    final existing = await prisma.user.findUnique(
-      where: UserWhereUniqueInput(email: email),
-    );
+    final db = ctx.container.resolve<Database>();
+    final existing = await db.users.findByEmail(email);
     if (existing != null) {
       throw FrameworkException('Email already registered', statusCode: 409);
     }
 
-    final user = await prisma.user.create(
-      data: CreateUserInput(
-        email: email,
-        passwordHash: hashPassword(password),
-        name: name.isEmpty ? null : name,
-      ),
+    final user = await db.users.create(
+      email: email,
+      passwordHash: hashPassword(password),
+      name: name.isEmpty ? null : name,
     );
 
     final auth = await tokens.issueTokens(
-      prisma: prisma,
+      db: db,
       userId: user.id,
       email: user.email,
     );
@@ -87,10 +83,8 @@ class AuthModule implements RewoModule {
 
     validateSigninCredentials(email, password);
 
-    final prisma = ctx.container.resolve<PrismaClient>();
-    final user = await prisma.user.findUnique(
-      where: UserWhereUniqueInput(email: email),
-    );
+    final db = ctx.container.resolve<Database>();
+    final user = await db.users.findByEmail(email);
     if (user == null) {
       throw UnauthorizedException('Invalid email or password');
     }
@@ -100,7 +94,7 @@ class AuthModule implements RewoModule {
     }
 
     final auth = await tokens.issueTokens(
-      prisma: prisma,
+      db: db,
       userId: user.id,
       email: user.email,
     );
@@ -126,8 +120,8 @@ class AuthModule implements RewoModule {
       throw BadRequestException('refresh_token is required');
     }
 
-    final prisma = ctx.container.resolve<PrismaClient>();
-    final auth = await tokens.refresh(prisma: prisma, refreshToken: refreshToken);
+    final db = ctx.container.resolve<Database>();
+    final auth = await tokens.refresh(db: db, refreshToken: refreshToken);
     return auth.toJson();
   }
 
@@ -138,8 +132,8 @@ class AuthModule implements RewoModule {
     final body = await ctx.jsonBody();
     final refreshToken = body['refresh_token'] as String?;
     if (refreshToken != null && refreshToken.isNotEmpty) {
-      final prisma = ctx.container.resolve<PrismaClient>();
-      await tokens.revokeRefreshToken(prisma, refreshToken);
+      final db = ctx.container.resolve<Database>();
+      await tokens.revokeRefreshToken(db, refreshToken);
     }
     return {'ok': true};
   }
@@ -148,17 +142,10 @@ class AuthModule implements RewoModule {
     final userId = ctx.userId;
     if (userId == null) throw UnauthorizedException('Not authenticated');
 
-    final prisma = ctx.container.resolve<PrismaClient>();
-    final user = await prisma.user.findUnique(
-      where: UserWhereUniqueInput(id: userId),
-    );
+    final db = ctx.container.resolve<Database>();
+    final user = await db.users.findById(userId);
     if (user == null) throw NotFoundException('User not found');
 
-    return {
-      'id': user.id,
-      'email': user.email,
-      'name': user.name,
-      'created_at': user.createdAt.toIso8601String(),
-    };
+    return user.toJson();
   }
 }

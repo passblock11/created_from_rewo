@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:rewo/rewo.dart';
 
-import '../generated/index.dart';
+import '../database/database.dart';
 
 /// Issues and verifies access + refresh JWT pairs.
 class TokenService {
@@ -22,19 +22,17 @@ class TokenService {
   JwtService get accessJwt => _accessJwt;
 
   Future<AuthTokens> issueTokens({
-    required PrismaClient prisma,
+    required Database db,
     required String userId,
     required String email,
     List<String> roles = const ['user'],
   }) async {
     final expiresAt = DateTime.now().add(refreshTtl).toUtc();
 
-    final row = await prisma.refreshToken.create(
-      data: CreateRefreshTokenInput(
-        userId: userId,
-        tokenHash: '',
-        expiresAt: expiresAt,
-      ),
+    final row = await db.refreshTokens.create(
+      userId: userId,
+      tokenHash: '',
+      expiresAt: expiresAt,
     );
 
     final refreshToken = _refreshJwt.sign({
@@ -43,9 +41,9 @@ class TokenService {
       'type': 'refresh',
     });
 
-    await prisma.refreshToken.update(
-      where: RefreshTokenWhereUniqueInput(id: row.id),
-      data: UpdateRefreshTokenInput(tokenHash: _hashToken(refreshToken)),
+    await db.refreshTokens.updateTokenHash(
+      id: row.id,
+      tokenHash: _hashToken(refreshToken),
     );
 
     final accessToken = _accessJwt.sign({
@@ -63,7 +61,7 @@ class TokenService {
   }
 
   Future<AuthTokens> refresh({
-    required PrismaClient prisma,
+    required Database db,
     required String refreshToken,
   }) async {
     final payload = _refreshJwt.verify(refreshToken);
@@ -77,12 +75,9 @@ class TokenService {
       throw UnauthorizedException('Invalid refresh token payload');
     }
 
-    final row = await prisma.refreshToken.findFirst(
-      where: RefreshTokenWhereInput(
-        id: StringFilter(equals: tokenId),
-        userId: StringFilter(equals: userId),
-      ),
-      include: const RefreshTokenInclude(user: UserInclude()),
+    final row = await db.refreshTokens.findByIdAndUserId(
+      id: tokenId,
+      userId: userId,
     );
     if (row == null) throw UnauthorizedException('Refresh token not found');
 
@@ -94,16 +89,13 @@ class TokenService {
       throw UnauthorizedException('Refresh token mismatch');
     }
 
-    await prisma.refreshToken.update(
-      where: RefreshTokenWhereUniqueInput(id: tokenId),
-      data: UpdateRefreshTokenInput(revokedAt: DateTime.now().toUtc()),
-    );
+    await db.refreshTokens.revoke(tokenId);
 
     final email = row.user?.email;
     if (email == null) throw UnauthorizedException('User not found');
 
     return issueTokens(
-      prisma: prisma,
+      db: db,
       userId: userId,
       email: email,
     );
@@ -114,17 +106,14 @@ class TokenService {
   }
 
   Future<void> revokeRefreshToken(
-    PrismaClient prisma,
+    Database db,
     String refreshToken,
   ) async {
     try {
       final payload = _refreshJwt.verify(refreshToken);
       final tokenId = payload['jti'] as String?;
       if (tokenId == null) return;
-      await prisma.refreshToken.update(
-        where: RefreshTokenWhereUniqueInput(id: tokenId),
-        data: UpdateRefreshTokenInput(revokedAt: DateTime.now().toUtc()),
-      );
+      await db.refreshTokens.revoke(tokenId);
     } on Object {
       // Ignore invalid tokens on logout.
     }

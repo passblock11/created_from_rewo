@@ -1,8 +1,2 @@
--- Schema is managed by Prisma.
--- See prisma/schema.prisma and run:
---
---   npx prisma migrate deploy
---
--- Or the legacy SQL runner:
---
---   dart run bin/migrate.dart
+-- Canonical schema for dart_serve_testing.
+-- Apply with: dart run bin/migrate.dart

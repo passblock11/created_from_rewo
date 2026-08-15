@@ -1,17 +1,17 @@
 import 'package:rewo/rewo.dart';
 
 import '../auth/token_service.dart';
+import '../database/database.dart';
 import '../database/setup.dart';
-import '../generated/index.dart';
 
-/// Items API backed by Prisma when `DATABASE_URL` is set in `.env`.
+/// Items API backed by Postgres when `DATABASE_URL` is set in `.env`.
 class ItemsModule implements RewoModule {
   @override
   String get name => 'items';
 
   @override
   void register(Rewo app) {
-    if (!hasPrisma(app)) {
+    if (!hasDatabase(app)) {
       app.get('/api/items', (_) async => {
             'error': 'Database not configured',
             'hint': 'Set DATABASE_URL in .env and run dart run bin/migrate.dart',
@@ -24,9 +24,8 @@ class ItemsModule implements RewoModule {
         : <MiddlewareHandler>[];
 
     app.get('/api/items', (ctx) async {
-      final prisma = ctx.container.resolve<PrismaClient>();
-      final items = await prisma.item.findMany();
-      items.sort((Item a, Item b) => b.createdAt.compareTo(a.createdAt));
+      final db = ctx.container.resolve<Database>();
+      final items = await db.items.findAll();
       return items.map((item) => item.toJson()).toList();
     });
 
@@ -35,10 +34,8 @@ class ItemsModule implements RewoModule {
       final title = body['title']?.toString() ?? '';
       if (title.isEmpty) throw BadRequestException('title is required');
 
-      final prisma = ctx.container.resolve<PrismaClient>();
-      final item = await prisma.item.create(
-        data: CreateItemInput(title: title),
-      );
+      final db = ctx.container.resolve<Database>();
+      final item = await db.items.create(title: title);
       return item.toJson();
     }, middleware: authMiddleware);
 
@@ -48,15 +45,12 @@ class ItemsModule implements RewoModule {
       final title = body['title']?.toString() ?? '';
       if (title.isEmpty) throw BadRequestException('title is required');
 
-      final prisma = ctx.container.resolve<PrismaClient>();
+      final db = ctx.container.resolve<Database>();
       try {
-        final item = await prisma.item.update(
-          where: ItemWhereUniqueInput(id: id),
-          data: UpdateItemInput(title: title),
-        );
+        final item = await db.items.update(id: id, title: title);
         return item.toJson();
-      } on Object catch (e) {
-        if (e.toString().contains('not found')) {
+      } on StateError catch (e) {
+        if (e.message.contains('not found')) {
           throw NotFoundException('Item $id not found');
         }
         rethrow;
@@ -65,12 +59,12 @@ class ItemsModule implements RewoModule {
 
     app.delete('/api/items/:id', (ctx) async {
       final id = ctx.param('id')!;
-      final prisma = ctx.container.resolve<PrismaClient>();
+      final db = ctx.container.resolve<Database>();
       try {
-        await prisma.item.delete(where: ItemWhereUniqueInput(id: id));
+        await db.items.delete(id);
         return {'deleted': true, 'id': id};
-      } on Object catch (e) {
-        if (e.toString().contains('not found')) {
+      } on StateError catch (e) {
+        if (e.message.contains('not found')) {
           throw NotFoundException('Item $id not found');
         }
         rethrow;
@@ -79,10 +73,8 @@ class ItemsModule implements RewoModule {
 
     app.get('/api/items/:id', (ctx) async {
       final id = ctx.param('id')!;
-      final prisma = ctx.container.resolve<PrismaClient>();
-      final item = await prisma.item.findUnique(
-        where: ItemWhereUniqueInput(id: id),
-      );
+      final db = ctx.container.resolve<Database>();
+      final item = await db.items.findById(id);
       if (item == null) throw NotFoundException('Item $id not found');
       return item.toJson();
     });

@@ -1,6 +1,6 @@
 # Rewo App
 
-Pure Dart backend using [prisma_flutter_connector](https://pub.dev/packages/prisma_flutter_connector) — **no Node.js required**.
+Pure Dart backend using the `postgres` package — **no Node.js or Flutter required**.
 
 ## Setup
 
@@ -13,26 +13,13 @@ dart pub global activate rewo
 
 ## Database
 
-Schema: `prisma/schema.prisma`
+Schema: `sql/migrations/001_initial.sql`
 
 **Migrations** (Dart only):
 
 ```bash
 dart run bin/migrate.dart
 ```
-
-**Regenerate client** (after schema changes):
-
-```bash
-dart run prisma_flutter_connector:generate \
-  --schema prisma/schema.prisma \
-  --output lib/generated \
-  --server
-
-dart run build_runner build --delete-conflicting-outputs
-```
-
-Generated client: `lib/generated/`
 
 ## Development
 
@@ -44,6 +31,14 @@ rewo run --dev
 
 | Package | Purpose |
 |---------|---------|
-| `prisma_flutter_connector` | Prisma-style ORM, direct Postgres/Supabase |
+| `postgres` | Direct Postgres queries + SQL migrations |
 | `rewo` | HTTP framework |
-| `postgres` | SQL migrations (`bin/migrate.dart`) |
+
+## Docker (Render / Fly.io)
+
+```bash
+docker build -t dart-serve-testing .
+docker run -p 8080:8080 --env-file .env dart-serve-testing
+```
+
+Uses `dart:stable` with `dart run` (no Flutter SDK). Set `DART_VM_OPTIONS=--old_gen_heap_size=256` in the Dockerfile to stay within Render's 512MB free tier.
