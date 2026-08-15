@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: dart-serve-testing
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: ENV
+        value: production
+      - key: LOG_REQUESTS
+        value: "true"
+      - key: SERVER_ENGINE
+        value: shelf
+      # Set these in the Render dashboard (do not commit secrets):
+      # - DATABASE_URL  (Supabase pooler :6543)
+      # - JWT_SECRET
+      # - DIRECT_URL    (optional, migrations only)

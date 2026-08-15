@@ -1,0 +1,9 @@
+.git
+.dart_tool/
+.packages
+build/
+storage/
+.env
+*.md
+docker-compose.yml
+test/

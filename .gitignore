@@ -1,0 +1,11 @@
+.dart_tool/
+.packages
+build/
+storage/
+.env
+prisma/prisma-query-engine
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
