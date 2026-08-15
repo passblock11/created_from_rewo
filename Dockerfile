@@ -1,11 +1,14 @@
 # Build stage — compile Dart server binary
-FROM dart:stable AS build
+# prisma_flutter_connector declares a Flutter SDK dependency in pubspec,
+# so plain dart:stable cannot run pub get (use flutter pub get instead).
+FROM ghcr.io/cirruslabs/flutter:stable AS build
 
 WORKDIR /app
+ENV CI=true
 
 # Cache dependencies
 COPY pubspec.yaml pubspec.lock ./
-RUN dart pub get
+RUN flutter pub get
 
 # Copy source (includes lib/generated from prisma codegen)
 COPY bin/ bin/
@@ -13,7 +16,6 @@ COPY lib/ lib/
 COPY prisma/ prisma/
 COPY analysis_options.yaml analysis_options.yaml
 
-RUN dart pub get --offline
 RUN dart compile exe bin/server.dart -o server
 
 # Runtime stage — minimal image
