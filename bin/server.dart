@@ -3,27 +3,27 @@ import 'dart:async';
 import 'package:dart_serve_testing/app.dart';
 import 'package:rewo/rewo.dart';
 
-/// Entry point — compile with: dart compile exe bin/server.dart -o server
-///
-/// Dev (hot reload): dart run bin/server.dart --dev
-/// Production:       dart run bin/server.dart
 Future<void> main(List<String> args) async {
-  await DevServer.run(
-    args: args,
-    entrypoint: 'bin/server.dart',
-    start: _startServer,
-  );
+  final devMode = args.contains('--dev') || args.contains('-d');
+  if (devMode) {
+    await DevServer.run(
+      args: args,
+      entrypoint: 'bin/server.dart',
+      start: _startServer,
+    );
+    return;
+  }
+
+  await _startServer(args);
 }
 
 Future<void> _startServer(List<String> args) async {
   await DotEnv.load();
-  final cliPort = args.isNotEmpty ? int.tryParse(args.first) : null;
-  final port = cliPort ?? DotEnv.getInt('PORT', fallback: 8080);
+  final port = DevServer.resolvedPort(args);
 
   // ignore: avoid_print
-  print('Starting Rewo App on http://localhost:$port');
-  await App.run(port: cliPort);
+  print('Starting Rewo App on http://0.0.0.0:$port');
+  await App.run(port: port);
 
-  // Keep the process alive (server + signal handlers run in background).
   await Completer<void>().future;
 }

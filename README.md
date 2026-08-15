@@ -41,4 +41,6 @@ docker build -t dart-serve-testing .
 docker run -p 8080:8080 --env-file .env dart-serve-testing
 ```
 
-Uses `dart:stable` with `dart run` (no Flutter SDK). Set `DART_VM_OPTIONS=--old_gen_heap_size=256` in the Dockerfile to stay within Render's 512MB free tier.
+Compiles to a native binary (~8MB) in a slim Debian image — fits Render's 512MB free tier.
+
+Required env vars on Render: `DATABASE_URL`, `JWT_SECRET` (16+ chars), `HOST=0.0.0.0`. Render sets `PORT` automatically.
