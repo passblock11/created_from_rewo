@@ -19,7 +19,8 @@ fi
 
 echo "==> Pulling latest code..."
 cd "${APP_DIR}"
-sudo -u "${APP_USER}" git pull --ff-only
+sudo -u "${APP_USER}" git fetch origin main
+sudo -u "${APP_USER}" git reset --hard origin/main
 
 echo "==> Installing dependencies..."
 sudo -u "${APP_USER}" dart pub get
