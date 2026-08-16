@@ -41,6 +41,16 @@ ufw allow 'Nginx Full'
 ufw --force enable
 ufw status
 
+echo "==> Opening ports 80/443 in iptables (Oracle Ubuntu default blocks all except 22)..."
+iptables -I INPUT 5 -p tcp -m state --state NEW -m tcp --dport 80 -j ACCEPT
+iptables -I INPUT 6 -p tcp -m state --state NEW -m tcp --dport 443 -j ACCEPT
+if command -v netfilter-persistent >/dev/null 2>&1; then
+  netfilter-persistent save
+elif [[ -d /etc/iptables ]]; then
+  mkdir -p /etc/iptables
+  iptables-save > /etc/iptables/rules.v4
+fi
+
 echo "==> Installing systemd service..."
 cp "${APP_DIR}/deploy/systemd/dart-serve-testing.service" /etc/systemd/system/ 2>/dev/null \
   || echo "   (Skip: clone repo first, then re-run deploy.sh)"

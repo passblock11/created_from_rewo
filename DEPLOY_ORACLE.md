@@ -216,11 +216,23 @@ curl -X POST https://api.yourdomain.com/api/auth/signup \
 | Problem | Fix |
 |---------|-----|
 | Can't SSH | Check Oracle ingress rule for port 22; verify public IP |
-| Connection refused on :80 | Run `sudo ufw status`; check Oracle ingress for 80/443 |
+| Connection refused on :80 | Oracle **iptables** blocks port 80 (see below); also check Oracle ingress for 80/443 |
 | `502 Bad Gateway` | App not running: `sudo systemctl status dart-serve-testing` |
 | `JWT_SECRET must be set` | Set `ENV=production` and a 16+ char `JWT_SECRET` in `.env` |
 | DB errors | Check `DATABASE_URL` / `DIRECT_URL`; run `dart run bin/migrate.dart` |
 | Out of memory | You're using the binary (good). Avoid Docker on 1 GB |
+
+### Oracle iptables blocks port 80 (even when ufw is off)
+
+Oracle Ubuntu images ship with host **iptables** that only allows SSH (22). Symptom: `curl 127.0.0.1/health` works but `curl YOUR_PUBLIC_IP/health` fails.
+
+```bash
+sudo iptables -I INPUT 5 -p tcp -m state --state NEW -m tcp --dport 80 -j ACCEPT
+sudo iptables -I INPUT 6 -p tcp -m state --state NEW -m tcp --dport 443 -j ACCEPT
+sudo apt-get install -y iptables-persistent
+sudo netfilter-persistent save
+curl http://YOUR_PUBLIC_IP/health
+```
 
 ---
 
