@@ -27,7 +27,7 @@ sudo -u "${APP_USER}" dart pub get
 echo "==> Running database migrations..."
 sudo -u "${APP_USER}" dart run bin/migrate.dart
 
-echo "==> Compiling native binary (ARM64)..."
+echo "==> Compiling native binary..."
 sudo -u "${APP_USER}" dart compile exe bin/server.dart -o server
 
 chmod +x "${APP_DIR}/server"
