@@ -220,6 +220,7 @@ You never SSH to deploy manually again (unless something breaks).
 | `git pull` failed | Part 3 — deploy key or public repo access |
 | `dart: command not found` | Dart not in PATH for `ubuntu` — symlink `/usr/local/bin/dart` |
 | Health check failed | `sudo journalctl -u dart-serve-testing -n 50` on VM |
+| `Text file busy` on compile | Fixed in latest `deploy.sh` — compile to `server.new`, stop service, then swap |
 | Analyze failed | Fix `dart analyze` errors locally before pushing |
 
 ---

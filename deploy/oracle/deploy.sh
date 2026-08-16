@@ -28,8 +28,11 @@ echo "==> Running database migrations..."
 sudo -u "${APP_USER}" dart run bin/migrate.dart
 
 echo "==> Compiling native binary..."
-sudo -u "${APP_USER}" dart compile exe bin/server.dart -o server
+sudo -u "${APP_USER}" dart compile exe bin/server.dart -o server.new
 
+echo "==> Swapping binary and restarting service..."
+systemctl stop dart-serve-testing
+mv -f server.new server
 chmod +x "${APP_DIR}/server"
 chown "${APP_USER}:${APP_USER}" "${APP_DIR}/server"
 
@@ -37,7 +40,7 @@ echo "==> Installing systemd service..."
 cp "${APP_DIR}/deploy/systemd/dart-serve-testing.service" /etc/systemd/system/
 systemctl daemon-reload
 systemctl enable dart-serve-testing
-systemctl restart dart-serve-testing
+systemctl start dart-serve-testing
 
 echo "==> Service status:"
 systemctl --no-pager status dart-serve-testing || true
