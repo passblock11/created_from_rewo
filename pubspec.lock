@@ -277,11 +277,11 @@ packages:
     dependency: "direct main"
     description:
       path: "."
-      ref: "v1.0.12"
-      resolved-ref: "11fcb83a557fc2c64aadc0d2fafe2ce76d06eb9f"
+      ref: "v1.0.14"
+      resolved-ref: "98fe324cb745f5f4978339ac5bbe767959269ca8"
       url: "https://github.com/passblock11/Rewo.git"
     source: git
-    version: "1.0.12"
+    version: "1.0.14"
   shelf:
     dependency: transitive
     description:

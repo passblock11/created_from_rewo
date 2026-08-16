@@ -1,0 +1,173 @@
+import 'package:postgres/postgres.dart';
+
+import '../models/conversation.dart';
+import 'id.dart';
+
+class ConversationRepository {
+  ConversationRepository(this._conn);
+
+  final Connection _conn;
+
+  Future<List<ConversationSummary>> listForUser(String userId) async {
+    final result = await _conn.execute(
+      Sql.named('''
+        SELECT c.id, c.type, c.title, c.created_by, c.created_at,
+               lm.body, lm.created_at,
+               (SELECT COUNT(*)::int FROM conversation_members cm2
+                WHERE cm2.conversation_id = c.id) AS member_count
+        FROM conversations c
+        INNER JOIN conversation_members cm
+          ON cm.conversation_id = c.id AND cm.user_id = @userId
+        LEFT JOIN LATERAL (
+          SELECT m.body, m.created_at
+          FROM messages m
+          WHERE m.conversation_id = c.id
+          ORDER BY m.created_at DESC
+          LIMIT 1
+        ) lm ON TRUE
+        ORDER BY COALESCE(lm.created_at, c.created_at) DESC
+      '''),
+      parameters: {'userId': userId},
+    );
+
+    return result.map((row) {
+      final conversation = Conversation.fromRow(row.sublist(0, 5));
+      return ConversationSummary(
+        conversation: conversation,
+        lastMessageBody: row[5] as String?,
+        lastMessageAt: row[6] as DateTime?,
+        memberCount: row[7] as int?,
+      );
+    }).toList();
+  }
+
+  Future<Conversation?> findById(String id) async {
+    final result = await _conn.execute(
+      Sql.named('''
+        SELECT id, type, title, created_by, created_at
+        FROM conversations WHERE id = @id LIMIT 1
+      '''),
+      parameters: {'id': id},
+    );
+    if (result.isEmpty) return null;
+    return Conversation.fromRow(result.first);
+  }
+
+  Future<Conversation?> findDmBetween(String userA, String userB) async {
+    final result = await _conn.execute(
+      Sql.named('''
+        SELECT c.id, c.type, c.title, c.created_by, c.created_at
+        FROM conversations c
+        INNER JOIN conversation_members m1
+          ON m1.conversation_id = c.id AND m1.user_id = @userA
+        INNER JOIN conversation_members m2
+          ON m2.conversation_id = c.id AND m2.user_id = @userB
+        WHERE c.type = 'dm'
+        LIMIT 1
+      '''),
+      parameters: {'userA': userA, 'userB': userB},
+    );
+    if (result.isEmpty) return null;
+    return Conversation.fromRow(result.first);
+  }
+
+  Future<Conversation> createDm({
+    required String userA,
+    required String userB,
+  }) async {
+    final existing = await findDmBetween(userA, userB);
+    if (existing != null) return existing;
+
+    final id = newId();
+    await _conn.execute(
+      Sql.named('''
+        INSERT INTO conversations (id, type, created_by)
+        VALUES (@id, 'dm', @createdBy)
+      '''),
+      parameters: {'id': id, 'createdBy': userA},
+    );
+    for (final userId in {userA, userB}) {
+      await _conn.execute(
+        Sql.named('''
+          INSERT INTO conversation_members (conversation_id, user_id)
+          VALUES (@conversationId, @userId)
+        '''),
+        parameters: {'conversationId': id, 'userId': userId},
+      );
+    }
+    return (await findById(id))!;
+  }
+
+  Future<Conversation> createGroup({
+    required String title,
+    required String createdBy,
+    required List<String> memberIds,
+  }) async {
+    final id = newId();
+    final members = {createdBy, ...memberIds}.toList();
+    await _conn.execute(
+      Sql.named('''
+        INSERT INTO conversations (id, type, title, created_by)
+        VALUES (@id, 'group', @title, @createdBy)
+      '''),
+      parameters: {'id': id, 'title': title, 'createdBy': createdBy},
+    );
+    for (final userId in members) {
+      await _conn.execute(
+        Sql.named('''
+          INSERT INTO conversation_members (conversation_id, user_id)
+          VALUES (@conversationId, @userId)
+        '''),
+        parameters: {'conversationId': id, 'userId': userId},
+      );
+    }
+    return (await findById(id))!;
+  }
+
+  Future<bool> isMember(String conversationId, String userId) async {
+    final result = await _conn.execute(
+      Sql.named('''
+        SELECT 1 FROM conversation_members
+        WHERE conversation_id = @conversationId AND user_id = @userId
+        LIMIT 1
+      '''),
+      parameters: {'conversationId': conversationId, 'userId': userId},
+    );
+    return result.isNotEmpty;
+  }
+
+  Future<List<Map<String, dynamic>>> listMembers(String conversationId) async {
+    final result = await _conn.execute(
+      Sql.named('''
+        SELECT u.id, u.email, u.name, cm.joined_at
+        FROM conversation_members cm
+        INNER JOIN users u ON u.id = cm.user_id
+        WHERE cm.conversation_id = @conversationId
+        ORDER BY cm.joined_at ASC
+      '''),
+      parameters: {'conversationId': conversationId},
+    );
+    return result
+        .map((row) => {
+              'id': row[0],
+              'email': row[1],
+              'name': row[2],
+              'joined_at': (row[3] as DateTime).toIso8601String(),
+            })
+        .toList();
+  }
+
+  Future<void> addMember({
+    required String conversationId,
+    required String userId,
+  }) async {
+    await _conn.execute(
+      Sql.named('''
+        INSERT INTO conversation_members (conversation_id, user_id)
+        VALUES (@conversationId, @userId)
+        ON CONFLICT DO NOTHING
+      '''),
+      parameters: {'conversationId': conversationId, 'userId': userId},
+    );
+  }
+}
