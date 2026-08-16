@@ -195,48 +195,85 @@ class ChatModule implements RewoModule {
         final type = payload['type'] as String? ?? '';
         final db = ctx.container.resolve<Database>();
 
-        switch (type) {
-          case 'subscribe':
-            final conversationId = payload['conversation_id'] as String? ?? '';
-            if (conversationId.isEmpty) {
-              _sendError(socket, 'conversation_id is required');
-              return;
-            }
-            final isMember = await db.conversations.isMember(conversationId, userId);
-            if (!isMember) {
-              _sendError(socket, 'Not a member of this conversation');
-              return;
-            }
-            hub.subscribe(connection, conversationId);
-            socket.add(jsonEncode({
-              'type': 'subscribed',
-              'conversation_id': conversationId,
-            }));
-          case 'message':
-            final conversationId = payload['conversation_id'] as String? ?? '';
-            final text = (payload['body'] as String? ?? '').trim();
-            if (conversationId.isEmpty || text.isEmpty) {
-              _sendError(socket, 'conversation_id and body are required');
-              return;
-            }
-            final isMember = await db.conversations.isMember(conversationId, userId);
-            if (!isMember) {
-              _sendError(socket, 'Not a member of this conversation');
-              return;
-            }
-            hub.subscribe(connection, conversationId);
-            final message = await db.messages.create(
-              conversationId: conversationId,
-              senderId: userId,
-              body: text,
-            );
-            hub.broadcastMessage(message);
-          default:
-            _sendError(socket, 'Unknown message type: $type');
+        if (type == 'subscribe') {
+          final conversationId = payload['conversation_id'] as String? ?? '';
+          if (conversationId.isEmpty) {
+            _sendError(socket, 'conversation_id is required');
+            return;
+          }
+          final isMember = await db.conversations.isMember(conversationId, userId);
+          if (!isMember) {
+            _sendError(socket, 'Not a member of this conversation');
+            return;
+          }
+          hub.subscribe(connection, conversationId);
+          socket.add(jsonEncode({
+            'type': 'subscribed',
+            'conversation_id': conversationId,
+          }));
+          return;
         }
+
+        if (type == 'message') {
+          final conversationId = payload['conversation_id'] as String? ?? '';
+          final text = (payload['body'] as String? ?? '').trim();
+          if (conversationId.isEmpty || text.isEmpty) {
+            _sendError(socket, 'conversation_id and body are required');
+            return;
+          }
+          final isMember = await db.conversations.isMember(conversationId, userId);
+          if (!isMember) {
+            _sendError(socket, 'Not a member of this conversation');
+            return;
+          }
+          hub.subscribe(connection, conversationId);
+          final message = await db.messages.create(
+            conversationId: conversationId,
+            senderId: userId,
+            body: text,
+          );
+          hub.broadcastMessage(message);
+          return;
+        }
+
+        if (type.startsWith('call_')) {
+          await _relayCallSignal(
+            db: db,
+            hub: hub,
+            fromUserId: userId,
+            payload: payload,
+            type: type,
+          );
+          return;
+        }
+
+        _sendError(socket, 'Unknown message type: $type');
       } on Object catch (e) {
         _sendError(socket, e.toString());
       }
+    });
+  }
+
+  Future<void> _relayCallSignal({
+    required Database db,
+    required ChatHub hub,
+    required String fromUserId,
+    required Map<String, dynamic> payload,
+    required String type,
+  }) async {
+    final toUserId = payload['to_user_id'] as String? ?? '';
+    final conversationId = payload['conversation_id'] as String? ?? '';
+    if (toUserId.isEmpty || conversationId.isEmpty) {
+      throw BadRequestException('to_user_id and conversation_id are required');
+    }
+
+    await _requireMembership(db, conversationId, fromUserId);
+    await _requireMembership(db, conversationId, toUserId);
+
+    hub.sendToUser(toUserId, {
+      ...payload,
+      'type': type,
+      'from_user_id': fromUserId,
     });
   }
 
