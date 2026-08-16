@@ -42,7 +42,9 @@ jobs:
           script_stop: true
           command_timeout: 15m
           script: |
-            sudo /opt/dart-serve-testing/deploy/oracle/deploy.sh
+            cd /opt/dart-serve-testing
+            sudo -u ubuntu git pull origin main
+            sudo bash deploy/oracle/deploy.sh
 
       - name: Health check
         uses: appleboy/ssh-action@v1.2.0
