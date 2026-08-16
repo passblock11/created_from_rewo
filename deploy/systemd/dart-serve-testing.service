@@ -1,0 +1,29 @@
+[Unit]
+Description=Dart Serve Testing API (Rewo)
+Documentation=https://github.com/passblock11/created_from_rewo
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/dart-serve-testing
+EnvironmentFile=/opt/dart-serve-testing/.env
+
+# Native AOT binary — low memory (~50–100 MB RAM)
+ExecStart=/opt/dart-serve-testing/server
+
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/dart-serve-testing/storage
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
