@@ -53,4 +53,38 @@ class UserRepository {
     );
     return User.fromRow(result.first);
   }
+
+  Future<List<User>> list({
+    required String excludeUserId,
+    String? query,
+    int limit = 50,
+  }) async {
+    final trimmed = query?.trim();
+    final hasQuery = trimmed != null && trimmed.isNotEmpty;
+    final safeLimit = limit.clamp(1, 100);
+
+    final result = await _conn.execute(
+      Sql.named(
+        hasQuery
+            ? 'SELECT id, email, password_hash, name, created_at '
+                'FROM users '
+                'WHERE id != @exclude_user_id '
+                'AND (email ILIKE @pattern OR COALESCE(name, \'\') ILIKE @pattern) '
+                'ORDER BY created_at DESC '
+                'LIMIT @limit'
+            : 'SELECT id, email, password_hash, name, created_at '
+                'FROM users '
+                'WHERE id != @exclude_user_id '
+                'ORDER BY created_at DESC '
+                'LIMIT @limit',
+      ),
+      parameters: {
+        'exclude_user_id': excludeUserId,
+        if (hasQuery) 'pattern': '%$trimmed%',
+        'limit': safeLimit,
+      },
+    );
+
+    return result.map(User.fromRow).toList();
+  }
 }
