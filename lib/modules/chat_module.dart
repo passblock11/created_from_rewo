@@ -53,7 +53,9 @@ class ChatModule implements RewoModule {
     final userId = _requireUserId(ctx);
     final db = ctx.container.resolve<Database>();
     final conversations = await db.conversations.listForUser(userId);
-    return conversations.map((c) => c.toJson()).toList();
+    return List<Map<String, dynamic>>.from(
+      conversations.map((c) => c.toJson()),
+    );
   }
 
   Future<Map<String, dynamic>> _createDm(RequestContext ctx) async {
@@ -155,7 +157,9 @@ class ChatModule implements RewoModule {
       limit: limit.clamp(1, 100),
       before: before,
     );
-    return messages.map((m) => m.toJson()).toList();
+    return List<Map<String, dynamic>>.from(
+      messages.map((m) => m.toJson()),
+    );
   }
 
   Future<Map<String, dynamic>> _sendMessage(RequestContext ctx) async {

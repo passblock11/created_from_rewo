@@ -43,6 +43,16 @@ systemctl daemon-reload
 systemctl enable dart-serve-testing
 systemctl start dart-serve-testing
 
+echo "==> Updating nginx (WebSocket upgrade support)..."
+NGINX_SITE=/etc/nginx/sites-available/dart-serve-testing
+if [[ -f "${APP_DIR}/deploy/nginx/dart-serve-testing.conf" ]]; then
+  cp "${APP_DIR}/deploy/nginx/dart-serve-testing.conf" "${NGINX_SITE}"
+  ln -sf "${NGINX_SITE}" /etc/nginx/sites-enabled/dart-serve-testing
+  rm -f /etc/nginx/sites-enabled/default
+  nginx -t
+  systemctl reload nginx
+fi
+
 echo "==> Service status:"
 systemctl --no-pager status dart-serve-testing || true
 
