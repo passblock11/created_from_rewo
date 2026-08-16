@@ -10,7 +10,7 @@ dependencies:
   rewo:
     git:
       url: https://github.com/passblock11/Rewo.git
-      ref: v1.0.11
+      ref: v1.0.12
   crypto: ^3.0.6
   postgres: ^3.4.5
   path: ^1.9.1
