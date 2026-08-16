@@ -38,12 +38,16 @@ class ConversationSummary {
     this.lastMessageBody,
     this.lastMessageAt,
     this.memberCount,
+    this.peerName,
+    this.peerEmail,
   });
 
   final Conversation conversation;
   final String? lastMessageBody;
   final DateTime? lastMessageAt;
   final int? memberCount;
+  final String? peerName;
+  final String? peerEmail;
 
   Map<String, dynamic> toJson() => {
         ...conversation.toJson(),
@@ -51,5 +55,7 @@ class ConversationSummary {
         if (lastMessageAt != null)
           'last_message_at': lastMessageAt!.toIso8601String(),
         if (memberCount != null) 'member_count': memberCount,
+        if (peerName != null) 'peer_name': peerName,
+        if (peerEmail != null) 'peer_email': peerEmail,
       };
 }

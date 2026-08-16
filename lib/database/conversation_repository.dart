@@ -14,7 +14,8 @@ class ConversationRepository {
         SELECT c.id, c.type, c.title, c.created_by, c.created_at,
                lm.body, lm.created_at,
                (SELECT COUNT(*)::int FROM conversation_members cm2
-                WHERE cm2.conversation_id = c.id) AS member_count
+                WHERE cm2.conversation_id = c.id) AS member_count,
+               peer.name, peer.email
         FROM conversations c
         INNER JOIN conversation_members cm
           ON cm.conversation_id = c.id AND cm.user_id = @userId
@@ -25,6 +26,15 @@ class ConversationRepository {
           ORDER BY m.created_at DESC
           LIMIT 1
         ) lm ON TRUE
+        LEFT JOIN LATERAL (
+          SELECT u.name, u.email
+          FROM conversation_members cm_peer
+          INNER JOIN users u ON u.id = cm_peer.user_id
+          WHERE cm_peer.conversation_id = c.id
+            AND cm_peer.user_id <> @userId
+            AND c.type = 'dm'
+          LIMIT 1
+        ) peer ON c.type = 'dm'
         ORDER BY COALESCE(lm.created_at, c.created_at) DESC
       '''),
       parameters: {'userId': userId},
@@ -37,6 +47,8 @@ class ConversationRepository {
         lastMessageBody: row[5] as String?,
         lastMessageAt: row[6] as DateTime?,
         memberCount: row[7] as int?,
+        peerName: row[8] as String?,
+        peerEmail: row[9] as String?,
       );
     }).toList();
   }
