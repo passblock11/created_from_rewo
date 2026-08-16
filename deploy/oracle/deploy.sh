@@ -46,7 +46,21 @@ systemctl start dart-serve-testing
 echo "==> Service status:"
 systemctl --no-pager status dart-serve-testing || true
 
+echo "==> Health check..."
+for attempt in 1 2 3 4 5; do
+  if curl -fsS http://127.0.0.1:8080/health; then
+    echo ""
+    echo "✅ Health check passed."
+    break
+  fi
+  if [[ "${attempt}" -eq 5 ]]; then
+    echo "❌ Health check failed after 5 attempts."
+    journalctl -u dart-serve-testing -n 30 --no-pager || true
+    exit 1
+  fi
+  echo "Waiting for service (attempt ${attempt}/5)..."
+  sleep 3
+done
+
 echo ""
 echo "✅ Deploy complete."
-echo "   Local:  curl http://127.0.0.1:8080/health"
-echo "   Public: configure nginx + Oracle security list (see DEPLOY_ORACLE.md)"

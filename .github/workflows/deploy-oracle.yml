@@ -46,12 +46,3 @@ jobs:
             sudo -u ubuntu git fetch origin main
             sudo -u ubuntu git reset --hard origin/main
             sudo bash deploy/oracle/deploy.sh
-
-      - name: Health check
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.ORACLE_HOST }}
-          username: ${{ secrets.ORACLE_USER }}
-          key: ${{ secrets.ORACLE_SSH_KEY }}
-          script: |
-            curl -fsS http://127.0.0.1:8080/health
