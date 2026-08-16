@@ -1,0 +1,54 @@
+name: Deploy to Oracle Cloud
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: # manual "Run workflow" button in GitHub Actions tab
+
+concurrency:
+  group: deploy-oracle
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Install dependencies
+        run: dart pub get
+
+      - name: Static analysis
+        run: dart analyze
+
+  deploy:
+    name: Deploy
+    needs: analyze
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.ORACLE_HOST }}
+          username: ${{ secrets.ORACLE_USER }}
+          key: ${{ secrets.ORACLE_SSH_KEY }}
+          script_stop: true
+          command_timeout: 15m
+          script: |
+            sudo /opt/dart-serve-testing/deploy/oracle/deploy.sh
+
+      - name: Health check
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.ORACLE_HOST }}
+          username: ${{ secrets.ORACLE_USER }}
+          key: ${{ secrets.ORACLE_SSH_KEY }}
+          script: |
+            curl -fsS http://127.0.0.1:8080/health
