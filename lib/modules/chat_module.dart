@@ -234,9 +234,6 @@ class ChatModule implements RewoModule {
     for (final member in members) {
       final memberId = member['id'] as String;
       if (memberId == message.senderId) continue;
-      if (hub.isUserViewingConversation(memberId, message.conversationId)) {
-        continue;
-      }
 
       final devices = await db.deviceTokens.listForUser(memberId);
       for (final device in devices) {
@@ -287,6 +284,20 @@ class ChatModule implements RewoModule {
           return;
         }
 
+        if (type == 'unsubscribe') {
+          final conversationId = payload['conversation_id'] as String? ?? '';
+          if (conversationId.isEmpty) {
+            _sendError(socket, 'conversation_id is required');
+            return;
+          }
+          hub.unsubscribe(connection, conversationId);
+          socket.add(jsonEncode({
+            'type': 'unsubscribed',
+            'conversation_id': conversationId,
+          }));
+          return;
+        }
+
         if (type == 'message') {
           final conversationId = payload['conversation_id'] as String? ?? '';
           final text = (payload['body'] as String? ?? '').trim();
@@ -305,6 +316,10 @@ class ChatModule implements RewoModule {
             senderId: userId,
             body: text,
           );
+          socket.add(jsonEncode({
+            'type': 'message',
+            'message': message.toJson(),
+          }));
           await _deliverMessage(
             container: ctx.container,
             db: db,

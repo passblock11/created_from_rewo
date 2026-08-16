@@ -40,6 +40,14 @@ class ChatHub {
     _byConversation.putIfAbsent(conversationId, () => {}).add(connection);
   }
 
+  void unsubscribe(ChatConnection connection, String conversationId) {
+    connection.conversationIds.remove(conversationId);
+    _byConversation[conversationId]?.remove(connection);
+    if (_byConversation[conversationId]?.isEmpty ?? false) {
+      _byConversation.remove(conversationId);
+    }
+  }
+
   void broadcastMessage(Message message, {String? excludeSocketUserId}) {
     final payload = jsonEncode({
       'type': 'message',
