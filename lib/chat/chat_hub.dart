@@ -64,5 +64,13 @@ class ChatHub {
     }
   }
 
+  /// True when the user has an active socket subscribed to this conversation
+  /// (they are viewing the chat — skip push notification).
+  bool isUserViewingConversation(String userId, String conversationId) {
+    final connections = _byConversation[conversationId];
+    if (connections == null || connections.isEmpty) return false;
+    return connections.any((connection) => connection.userId == userId);
+  }
+
   ChatConnection? connectionFor(WebSocket socket) => _bySocket[socket];
 }

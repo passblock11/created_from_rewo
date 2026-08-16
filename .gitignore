@@ -4,6 +4,11 @@ build/
 storage/
 .env
 
+# Firebase service account private keys (never commit)
+rewo-*.json
+firebase-adminsdk*.json
+*-firebase-adminsdk*.json
+
 # OS / IDE
 .DS_Store
 .idea/

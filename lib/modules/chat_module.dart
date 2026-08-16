@@ -7,6 +7,8 @@ import '../auth/token_service.dart';
 import '../chat/chat_hub.dart';
 import '../database/database.dart';
 import '../database/setup.dart';
+import '../models/message.dart';
+import '../services/fcm_push_service.dart';
 
 class ChatModule implements RewoModule {
   @override
@@ -179,9 +181,80 @@ class ChatModule implements RewoModule {
     );
 
     final hub = ctx.container.resolve<ChatHub>();
-    hub.broadcastMessage(message);
+    await _deliverMessage(
+      container: ctx.container,
+      db: db,
+      hub: hub,
+      message: message,
+    );
 
     return message.toJson();
+  }
+
+  Future<void> _deliverMessage({
+    required ServiceContainer container,
+    required Database db,
+    required ChatHub hub,
+    required Message message,
+  }) async {
+    hub.broadcastMessage(message, excludeSocketUserId: message.senderId);
+    await _notifyMessagePush(
+      container: container,
+      db: db,
+      hub: hub,
+      message: message,
+    );
+  }
+
+  Future<void> _notifyMessagePush({
+    required ServiceContainer container,
+    required Database db,
+    required ChatHub hub,
+    required Message message,
+  }) async {
+    if (!container.isRegistered<FcmPushService>()) return;
+
+    final push = container.resolve<FcmPushService>();
+    final conversation = await db.conversations.findById(message.conversationId);
+    if (conversation == null) return;
+
+    final senderName = message.senderName?.trim().isNotEmpty == true
+        ? message.senderName!.trim()
+        : (message.senderEmail?.trim().isNotEmpty == true
+            ? message.senderEmail!.trim()
+            : 'Someone');
+
+    final conversationTitle = conversation.type == 'group'
+        ? (conversation.title?.trim().isNotEmpty == true
+            ? conversation.title!.trim()
+            : 'Group')
+        : senderName;
+
+    final members = await db.conversations.listMembers(message.conversationId);
+    for (final member in members) {
+      final memberId = member['id'] as String;
+      if (memberId == message.senderId) continue;
+      if (hub.isUserViewingConversation(memberId, message.conversationId)) {
+        continue;
+      }
+
+      final devices = await db.deviceTokens.listForUser(memberId);
+      for (final device in devices) {
+        await push.sendChatMessage(
+          deviceToken: device.token,
+          data: {
+            'type': 'chat_message',
+            'conversation_id': message.conversationId,
+            'message_id': message.id,
+            'sender_id': message.senderId,
+            'sender_name': senderName,
+            'body': message.body,
+            'conversation_type': conversation.type,
+            'conversation_title': conversationTitle,
+          },
+        );
+      }
+    }
   }
 
   void _onWebSocket(WebSocket socket, RequestContext ctx, ChatHub hub) {
@@ -232,12 +305,18 @@ class ChatModule implements RewoModule {
             senderId: userId,
             body: text,
           );
-          hub.broadcastMessage(message);
+          await _deliverMessage(
+            container: ctx.container,
+            db: db,
+            hub: hub,
+            message: message,
+          );
           return;
         }
 
         if (type.startsWith('call_')) {
           await _relayCallSignal(
+            container: ctx.container,
             db: db,
             hub: hub,
             fromUserId: userId,
@@ -255,6 +334,7 @@ class ChatModule implements RewoModule {
   }
 
   Future<void> _relayCallSignal({
+    required ServiceContainer container,
     required Database db,
     required ChatHub hub,
     required String fromUserId,
@@ -275,6 +355,56 @@ class ChatModule implements RewoModule {
       'type': type,
       'from_user_id': fromUserId,
     });
+
+    if (type == 'call_invite' || type == 'call_end' || type == 'call_reject') {
+      await _notifyCallPush(
+        container: container,
+        db: db,
+        toUserId: toUserId,
+        fromUserId: fromUserId,
+        type: type,
+        payload: payload,
+      );
+    }
+  }
+
+  Future<void> _notifyCallPush({
+    required ServiceContainer container,
+    required Database db,
+    required String toUserId,
+    required String fromUserId,
+    required String type,
+    required Map<String, dynamic> payload,
+  }) async {
+    if (!container.isRegistered<FcmPushService>()) return;
+
+    final push = container.resolve<FcmPushService>();
+    final devices = await db.deviceTokens.listForUser(toUserId);
+    if (devices.isEmpty) return;
+
+    final callId = '${payload['call_id'] ?? ''}';
+    if (callId.isEmpty) return;
+
+    for (final device in devices) {
+      if (type == 'call_invite') {
+        await push.sendIncomingCall(
+          deviceToken: device.token,
+          data: {
+            'type': 'call_invite',
+            'call_id': callId,
+            'conversation_id': '${payload['conversation_id']}',
+            'from_user_id': fromUserId,
+            'from_name': '${payload['from_name'] ?? 'Someone'}',
+            'call_mode': '${payload['call_mode'] ?? 'audio'}',
+          },
+        );
+      } else {
+        await push.sendCallCancelled(
+          deviceToken: device.token,
+          callId: callId,
+        );
+      }
+    }
   }
 
   String _requireUserId(RequestContext ctx) {

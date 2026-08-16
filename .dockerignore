@@ -4,6 +4,8 @@
 build/
 storage/
 .env
+rewo-*.json
+firebase-adminsdk*.json
 *.md
 docker-compose.yml
 test/

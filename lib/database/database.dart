@@ -2,6 +2,7 @@ import 'package:postgres/postgres.dart';
 
 import 'connection.dart';
 import 'conversation_repository.dart';
+import 'device_token_repository.dart';
 import 'item_repository.dart';
 import 'message_repository.dart';
 import 'refresh_token_repository.dart';
@@ -13,7 +14,8 @@ class Database {
         refreshTokens = RefreshTokenRepository(connection),
         items = ItemRepository(connection),
         conversations = ConversationRepository(connection),
-        messages = MessageRepository(connection);
+        messages = MessageRepository(connection),
+        deviceTokens = DeviceTokenRepository(connection);
 
   final Connection connection;
   final UserRepository users;
@@ -21,6 +23,7 @@ class Database {
   final ItemRepository items;
   final ConversationRepository conversations;
   final MessageRepository messages;
+  final DeviceTokenRepository deviceTokens;
 
   static Future<Database> open(String connectionString) async {
     final connection = await openDatabaseConnection(connectionString);

@@ -100,11 +100,13 @@ DIRECT_URL=postgresql://...@....supabase.com:5432/postgres
 | `JWT_SECRET` | **Min 16 chars** in production — use a password generator |
 | `DATABASE_URL` | Supabase **pooler** port `6543` for the running app |
 | `DIRECT_URL` | Supabase port `5432` for migrations |
+| `FCM_SERVICE_ACCOUNT_PATH` | Firebase JSON filename in project root (e.g. `rewo-76e5c-2b50a98d4c11.json`) — copy file to VM manually |
 
 Lock down permissions:
 
 ```bash
 chmod 600 /opt/dart-serve-testing/.env
+chmod 600 /opt/dart-serve-testing/rewo-*.json
 ```
 
 > **Security:** Never commit `.env`. Rotate secrets if they were ever exposed.

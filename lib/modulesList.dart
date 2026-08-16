@@ -3,11 +3,13 @@ import 'database/setup.dart';
 import 'modules/auth_module.dart';
 import 'modules/chat_module.dart';
 import 'modules/items_module.dart';
+import 'modules/push_module.dart';
 import 'modules/get_json_data.dart';
 
 class ModulesList {
   static List<RewoModule> get modules => [
         AuthModule(),
+        PushModule(),
         ChatModule(),
         ItemsModule(),
         GetJsonDataModule(),
