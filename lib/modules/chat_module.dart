@@ -461,6 +461,24 @@ class ChatModule implements RewoModule {
             (metadata['start_at'] as String? ?? '').trim().isEmpty) {
           throw BadRequestException('event requires title and start_at');
         }
+      case 'album':
+        final items = metadata['items'];
+        if (items is! List || items.isEmpty || items.length > 30) {
+          throw BadRequestException('album requires 1 to 30 items');
+        }
+        for (final raw in items) {
+          if (raw is! Map) {
+            throw BadRequestException('album items must be objects');
+          }
+          final item = Map<String, dynamic>.from(raw);
+          if ((item['url'] as String? ?? '').isEmpty) {
+            throw BadRequestException('each album item requires url');
+          }
+          final itemType = item['type'] as String? ?? 'image';
+          if (itemType != 'image' && itemType != 'video') {
+            throw BadRequestException('album item type must be image or video');
+          }
+        }
       default:
         break;
     }
