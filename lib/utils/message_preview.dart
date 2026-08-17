@@ -13,6 +13,12 @@ const _supportedTypes = {
 
 bool isSupportedMessageType(String type) => _supportedTypes.contains(type);
 
+String deletedMessagePreview({required String viewerId, required String senderId}) {
+  return senderId == viewerId
+      ? 'You deleted this message'
+      : 'This message was deleted';
+}
+
 String previewForMessageType(String type, Map<String, dynamic> metadata) {
   switch (type) {
     case 'image':

@@ -12,7 +12,7 @@ class ConversationRepository {
     final result = await _conn.execute(
       Sql.named('''
         SELECT c.id, c.type, c.title, c.created_by, c.created_at,
-               lm.body, lm.created_at, lm.e2ee_version,
+               lm.body, lm.created_at, lm.e2ee_version, lm.deleted_at, lm.sender_id,
                (SELECT COUNT(*)::int FROM conversation_members cm2
                 WHERE cm2.conversation_id = c.id) AS member_count,
                peer.id, peer.name, peer.email,
@@ -24,9 +24,13 @@ class ConversationRepository {
         INNER JOIN conversation_members cm
           ON cm.conversation_id = c.id AND cm.user_id = @userId
         LEFT JOIN LATERAL (
-          SELECT m.body, m.created_at, m.e2ee_version
+          SELECT m.body, m.created_at, m.e2ee_version, m.deleted_at, m.sender_id
           FROM messages m
           WHERE m.conversation_id = c.id
+            AND NOT EXISTS (
+              SELECT 1 FROM user_hidden_messages h
+              WHERE h.message_id = m.id AND h.user_id = @userId
+            )
           ORDER BY m.created_at DESC
           LIMIT 1
         ) lm ON TRUE
@@ -46,16 +50,20 @@ class ConversationRepository {
 
     return result.map((row) {
       final conversation = Conversation.fromRow(row.sublist(0, 5));
+      final deletedAt = row[8] as DateTime?;
+      final lastSenderId = row[9] as String?;
       return ConversationSummary(
         conversation: conversation,
         lastMessageBody: row[5] as String?,
         lastMessageAt: row[6] as DateTime?,
         lastMessageE2ee: (row[7] as int? ?? 0) > 0,
-        memberCount: row[8] as int?,
-        peerUserId: row[9] as String?,
-        peerName: row[10] as String?,
-        peerEmail: row[11] as String?,
-        unreadCount: row[12] as int? ?? 0,
+        lastMessageDeleted: deletedAt != null,
+        lastMessageSenderId: lastSenderId,
+        memberCount: row[10] as int?,
+        peerUserId: row[11] as String?,
+        peerName: row[12] as String?,
+        peerEmail: row[13] as String?,
+        unreadCount: row[14] as int? ?? 0,
       );
     }).toList();
   }

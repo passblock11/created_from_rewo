@@ -47,6 +47,7 @@ class ChatModule implements RewoModule {
     app.post('/api/conversations/:id/read', _markConversationRead, middleware: authMiddleware);
     app.post('/api/messages/:id/poll/vote', _votePoll, middleware: authMiddleware);
     app.post('/api/messages/:id/event/rsvp', _rsvpEvent, middleware: authMiddleware);
+    app.post('/api/messages/:id/delete', _deleteMessage, middleware: authMiddleware);
 
     app.webSocket(
       '/ws/chat',
@@ -60,7 +61,16 @@ class ChatModule implements RewoModule {
     final db = ctx.container.resolve<Database>();
     final conversations = await db.conversations.listForUser(userId);
     return List<Map<String, dynamic>>.from(
-      conversations.map((c) => c.toJson()),
+      conversations.map((c) {
+        final json = c.toJson(viewerUserId: userId);
+        if (c.lastMessageDeleted && c.lastMessageSenderId != null) {
+          json['last_message'] = deletedMessagePreview(
+            viewerId: userId,
+            senderId: c.lastMessageSenderId!,
+          );
+        }
+        return json;
+      }),
     );
   }
 
@@ -160,6 +170,7 @@ class ChatModule implements RewoModule {
 
     final messages = await db.messages.listByConversation(
       conversationId: conversationId,
+      userId: userId,
       limit: limit.clamp(1, 100),
       before: before,
     );
@@ -213,6 +224,64 @@ class ChatModule implements RewoModule {
       'ok': true,
       'read_at': readAt.toIso8601String(),
     };
+  }
+
+  static const _deleteForEveryoneLimit = Duration(hours: 48);
+
+  Future<Map<String, dynamic>> _deleteMessage(RequestContext ctx) async {
+    final userId = _requireUserId(ctx);
+    final messageId = ctx.param('id')!;
+    final body = await ctx.jsonBody();
+    final scope = body['scope'] as String? ?? '';
+    if (scope != 'me' && scope != 'everyone') {
+      throw BadRequestException('scope must be "me" or "everyone"');
+    }
+
+    final db = ctx.container.resolve<Database>();
+    final existing = await db.messages.findById(messageId);
+    if (existing == null) throw NotFoundException('Message not found');
+    await _requireMembership(db, existing.conversationId, userId);
+
+    final hub = ctx.container.resolve<ChatHub>();
+
+    if (scope == 'me') {
+      await db.messages.hideForUser(messageId: messageId, userId: userId);
+      hub.broadcastMessageHidden(
+        conversationId: existing.conversationId,
+        messageId: messageId,
+        userId: userId,
+      );
+      return {
+        'ok': true,
+        'scope': 'me',
+        'message_id': messageId,
+        'conversation_id': existing.conversationId,
+      };
+    }
+
+    if (existing.senderId != userId) {
+      throw ForbiddenException('Only the sender can delete for everyone');
+    }
+    if (existing.isDeleted) {
+      throw BadRequestException('Message already deleted');
+    }
+    final age = DateTime.now().toUtc().difference(existing.createdAt.toUtc());
+    if (age > _deleteForEveryoneLimit) {
+      throw BadRequestException(
+        'Delete for everyone is only available within 48 hours',
+      );
+    }
+
+    final updated = await db.messages.deleteForEveryone(
+      messageId: messageId,
+      userId: userId,
+    );
+    if (updated == null) {
+      throw BadRequestException('Could not delete message');
+    }
+
+    hub.broadcastMessageDeleted(updated);
+    return updated.toJson();
   }
 
   Future<Map<String, dynamic>> _votePoll(RequestContext ctx) async {
@@ -425,9 +494,10 @@ class ChatModule implements RewoModule {
         sender?.email;
     metadata['reply_to'] = {
       'id': original.id,
-      'body': original.body,
+      'body': original.isDeleted ? '' : original.body,
       'sender_id': original.senderId,
       'message_type': original.messageType,
+      'deleted': original.isDeleted,
       if (senderName != null && senderName.isNotEmpty)
         'sender_name': senderName,
     };

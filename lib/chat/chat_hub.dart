@@ -80,6 +80,36 @@ class ChatHub {
     }
   }
 
+  void broadcastMessageDeleted(Message message) {
+    final payload = jsonEncode({
+      'type': 'message_deleted',
+      'scope': 'everyone',
+      'message': message.toJson(),
+    });
+    final connections =
+        _byConversation[message.conversationId]?.toList() ?? const [];
+    for (final connection in connections) {
+      connection.socket.add(payload);
+    }
+  }
+
+  void broadcastMessageHidden({
+    required String conversationId,
+    required String messageId,
+    required String userId,
+  }) {
+    final payload = jsonEncode({
+      'type': 'message_hidden',
+      'scope': 'me',
+      'conversation_id': conversationId,
+      'message_id': messageId,
+    });
+    for (final connection in _bySocket.values) {
+      if (connection.userId != userId) continue;
+      connection.socket.add(payload);
+    }
+  }
+
   void broadcastTyping({
     required String conversationId,
     required String userId,

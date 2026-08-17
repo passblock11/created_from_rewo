@@ -43,6 +43,8 @@ class ConversationSummary {
     this.peerEmail,
     this.unreadCount = 0,
     this.lastMessageE2ee = false,
+    this.lastMessageDeleted = false,
+    this.lastMessageSenderId,
   });
 
   final Conversation conversation;
@@ -54,8 +56,10 @@ class ConversationSummary {
   final String? peerEmail;
   final int unreadCount;
   final bool lastMessageE2ee;
+  final bool lastMessageDeleted;
+  final String? lastMessageSenderId;
 
-  Map<String, dynamic> toJson() => {
+  Map<String, dynamic> toJson({String? viewerUserId}) => {
         ...conversation.toJson(),
         if (lastMessageBody != null) 'last_message': lastMessageBody,
         if (lastMessageAt != null)
@@ -66,5 +70,8 @@ class ConversationSummary {
         if (peerEmail != null) 'peer_email': peerEmail,
         'unread_count': unreadCount,
         'last_message_e2ee': lastMessageE2ee,
+        'last_message_deleted': lastMessageDeleted,
+        if (lastMessageSenderId != null)
+          'last_message_sender_id': lastMessageSenderId,
       };
 }
