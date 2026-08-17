@@ -99,6 +99,24 @@ class ChatHub {
     }
   }
 
+  void broadcastConversationRead({
+    required String conversationId,
+    required String userId,
+    required DateTime readAt,
+  }) {
+    final payload = jsonEncode({
+      'type': 'conversation_read',
+      'conversation_id': conversationId,
+      'user_id': userId,
+      'read_at': readAt.toIso8601String(),
+    });
+    final connections =
+        _byConversation[conversationId]?.toList() ?? const [];
+    for (final connection in connections) {
+      connection.socket.add(payload);
+    }
+  }
+
   void sendToUser(String userId, Map<String, dynamic> payload) {
     final encoded = jsonEncode(payload);
     for (final connection in _bySocket.values) {

@@ -199,11 +199,20 @@ class ChatModule implements RewoModule {
     final conversationId = ctx.param('id')!;
     final db = ctx.container.resolve<Database>();
     await _requireMembership(db, conversationId, userId);
-    await db.conversations.markAsRead(
+    final readAt = await db.conversations.markAsRead(
       conversationId: conversationId,
       userId: userId,
     );
-    return {'ok': true};
+    final hub = ctx.container.resolve<ChatHub>();
+    hub.broadcastConversationRead(
+      conversationId: conversationId,
+      userId: userId,
+      readAt: readAt,
+    );
+    return {
+      'ok': true,
+      'read_at': readAt.toIso8601String(),
+    };
   }
 
   Future<Map<String, dynamic>> _votePoll(RequestContext ctx) async {

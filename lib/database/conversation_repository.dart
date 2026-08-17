@@ -59,21 +59,23 @@ class ConversationRepository {
     }).toList();
   }
 
-  Future<void> markAsRead({
+  Future<DateTime> markAsRead({
     required String conversationId,
     required String userId,
   }) async {
-    await _conn.execute(
+    final result = await _conn.execute(
       Sql.named('''
         UPDATE conversation_members
         SET last_read_at = NOW()
         WHERE conversation_id = @conversationId AND user_id = @userId
+        RETURNING last_read_at
       '''),
       parameters: {
         'conversationId': conversationId,
         'userId': userId,
       },
     );
+    return result.first[0] as DateTime;
   }
 
   Future<Conversation?> findById(String id) async {
@@ -174,7 +176,7 @@ class ConversationRepository {
   Future<List<Map<String, dynamic>>> listMembers(String conversationId) async {
     final result = await _conn.execute(
       Sql.named('''
-        SELECT u.id, u.email, u.name, cm.joined_at
+        SELECT u.id, u.email, u.name, cm.joined_at, cm.last_read_at
         FROM conversation_members cm
         INNER JOIN users u ON u.id = cm.user_id
         WHERE cm.conversation_id = @conversationId
@@ -188,6 +190,7 @@ class ConversationRepository {
               'email': row[1],
               'name': row[2],
               'joined_at': (row[3] as DateTime).toIso8601String(),
+              'last_read_at': (row[4] as DateTime).toIso8601String(),
             })
         .toList();
   }
