@@ -319,6 +319,12 @@ class ChatModule implements RewoModule {
         ? Map<String, dynamic>.from(metadataRaw)
         : <String, dynamic>{};
 
+    final e2eeVersion = payload['e2ee_version'] is int
+        ? payload['e2ee_version'] as int
+        : payload['e2ee_version'] is num
+            ? (payload['e2ee_version'] as num).toInt()
+            : 0;
+
     var text = (payload['body'] as String? ?? '').trim();
     if (messageType == 'text') {
       if (text.isEmpty) throw BadRequestException('body is required');
@@ -335,11 +341,13 @@ class ChatModule implements RewoModule {
       }
     }
 
-    await _sanitizeReplyMetadata(
-      metadata,
-      db: db,
-      conversationId: conversationId,
-    );
+    if (e2eeVersion == 0) {
+      await _sanitizeReplyMetadata(
+        metadata,
+        db: db,
+        conversationId: conversationId,
+      );
+    }
 
     return db.messages.create(
       conversationId: conversationId,
@@ -347,6 +355,7 @@ class ChatModule implements RewoModule {
       body: text,
       messageType: messageType,
       metadata: metadata,
+      e2eeVersion: e2eeVersion,
     );
   }
 
@@ -463,6 +472,10 @@ class ChatModule implements RewoModule {
             : 'Group')
         : senderName;
 
+    final pushBody = message.e2eeVersion > 0
+        ? 'New message'
+        : message.body;
+
     final members = await db.conversations.listMembers(message.conversationId);
     for (final member in members) {
       final memberId = member['id'] as String;
@@ -478,7 +491,8 @@ class ChatModule implements RewoModule {
             'message_id': message.id,
             'sender_id': message.senderId,
             'sender_name': senderName,
-            'body': message.body,
+            'body': pushBody,
+            'e2ee': message.e2eeVersion > 0 ? '1' : '0',
             'conversation_type': conversation.type,
             'conversation_title': conversationTitle,
           },

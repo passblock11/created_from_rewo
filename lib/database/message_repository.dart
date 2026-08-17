@@ -18,7 +18,7 @@ class MessageRepository {
     final result = await _conn.execute(
       Sql.named('''
         SELECT m.id, m.conversation_id, m.sender_id, m.body, m.created_at,
-               u.name, u.email, m.metadata, m.message_type
+               u.name, u.email, m.metadata, m.message_type, m.e2ee_version
         FROM messages m
         INNER JOIN users u ON u.id = m.sender_id
         WHERE m.conversation_id = @conversationId
@@ -39,7 +39,7 @@ class MessageRepository {
     final result = await _conn.execute(
       Sql.named('''
         SELECT m.id, m.conversation_id, m.sender_id, m.body, m.created_at,
-               u.name, u.email, m.metadata, m.message_type
+               u.name, u.email, m.metadata, m.message_type, m.e2ee_version
         FROM messages m
         INNER JOIN users u ON u.id = m.sender_id
         WHERE m.id = @id
@@ -57,18 +57,19 @@ class MessageRepository {
     required String body,
     String messageType = 'text',
     Map<String, dynamic> metadata = const {},
+    int e2eeVersion = 0,
   }) async {
     final id = newId();
     final metadataJson = jsonEncode(metadata);
     final result = await _conn.execute(
       Sql.named('''
         INSERT INTO messages (
-          id, conversation_id, sender_id, body, message_type, metadata
+          id, conversation_id, sender_id, body, message_type, metadata, e2ee_version
         )
         VALUES (
-          @id, @conversationId, @senderId, @body, @messageType, @metadata::jsonb
+          @id, @conversationId, @senderId, @body, @messageType, @metadata::jsonb, @e2eeVersion
         )
-        RETURNING id, conversation_id, sender_id, body, created_at, message_type, metadata
+        RETURNING id, conversation_id, sender_id, body, created_at, message_type, metadata, e2ee_version
       '''),
       parameters: {
         'id': id,
@@ -77,6 +78,7 @@ class MessageRepository {
         'body': body,
         'messageType': messageType,
         'metadata': metadataJson,
+        'e2eeVersion': e2eeVersion,
       },
     );
     final row = result.first;
@@ -96,6 +98,7 @@ class MessageRepository {
       metadata: _decodeMetadata(metadataRaw),
       senderName: senderRow?[0] as String?,
       senderEmail: senderRow?[1] as String?,
+      e2eeVersion: row[7] as int? ?? 0,
     );
   }
 
@@ -109,7 +112,7 @@ class MessageRepository {
         UPDATE messages
         SET metadata = @metadata::jsonb
         WHERE id = @id
-        RETURNING id, conversation_id, sender_id, body, created_at, message_type, metadata
+        RETURNING id, conversation_id, sender_id, body, created_at, message_type, metadata, e2ee_version
       '''),
       parameters: {
         'id': id,
@@ -133,6 +136,7 @@ class MessageRepository {
       metadata: _decodeMetadata(row[6]),
       senderName: senderRow?[0] as String?,
       senderEmail: senderRow?[1] as String?,
+      e2eeVersion: row[7] as int? ?? 0,
     );
   }
 

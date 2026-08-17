@@ -12,7 +12,7 @@ class ConversationRepository {
     final result = await _conn.execute(
       Sql.named('''
         SELECT c.id, c.type, c.title, c.created_by, c.created_at,
-               lm.body, lm.created_at,
+               lm.body, lm.created_at, lm.e2ee_version,
                (SELECT COUNT(*)::int FROM conversation_members cm2
                 WHERE cm2.conversation_id = c.id) AS member_count,
                peer.id, peer.name, peer.email,
@@ -24,7 +24,7 @@ class ConversationRepository {
         INNER JOIN conversation_members cm
           ON cm.conversation_id = c.id AND cm.user_id = @userId
         LEFT JOIN LATERAL (
-          SELECT m.body, m.created_at
+          SELECT m.body, m.created_at, m.e2ee_version
           FROM messages m
           WHERE m.conversation_id = c.id
           ORDER BY m.created_at DESC
@@ -50,11 +50,12 @@ class ConversationRepository {
         conversation: conversation,
         lastMessageBody: row[5] as String?,
         lastMessageAt: row[6] as DateTime?,
-        memberCount: row[7] as int?,
-        peerUserId: row[8] as String?,
-        peerName: row[9] as String?,
-        peerEmail: row[10] as String?,
-        unreadCount: row[11] as int? ?? 0,
+        lastMessageE2ee: (row[7] as int? ?? 0) > 0,
+        memberCount: row[8] as int?,
+        peerUserId: row[9] as String?,
+        peerName: row[10] as String?,
+        peerEmail: row[11] as String?,
+        unreadCount: row[12] as int? ?? 0,
       );
     }).toList();
   }

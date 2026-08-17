@@ -42,6 +42,7 @@ class ConversationSummary {
     this.peerName,
     this.peerEmail,
     this.unreadCount = 0,
+    this.lastMessageE2ee = false,
   });
 
   final Conversation conversation;
@@ -52,6 +53,7 @@ class ConversationSummary {
   final String? peerName;
   final String? peerEmail;
   final int unreadCount;
+  final bool lastMessageE2ee;
 
   Map<String, dynamic> toJson() => {
         ...conversation.toJson(),
@@ -63,5 +65,6 @@ class ConversationSummary {
         if (peerName != null) 'peer_name': peerName,
         if (peerEmail != null) 'peer_email': peerEmail,
         'unread_count': unreadCount,
+        'last_message_e2ee': lastMessageE2ee,
       };
 }

@@ -11,6 +11,7 @@ class Message {
     this.metadata = const {},
     this.senderName,
     this.senderEmail,
+    this.e2eeVersion = 0,
   });
 
   final String id;
@@ -22,6 +23,7 @@ class Message {
   final Map<String, dynamic> metadata;
   final String? senderName;
   final String? senderEmail;
+  final int e2eeVersion;
 
   factory Message.fromRow(List<Object?> row) {
     final metadataRaw = row.length > 7 ? row[7] : null;
@@ -44,6 +46,7 @@ class Message {
       senderEmail: row.length > 6 ? row[6] as String? : null,
       messageType: row.length > 8 ? row[8] as String? ?? 'text' : 'text',
       metadata: metadata,
+      e2eeVersion: row.length > 9 ? row[9] as int? ?? 0 : 0,
     );
   }
 
@@ -55,6 +58,7 @@ class Message {
         'created_at': createdAt.toIso8601String(),
         'message_type': messageType,
         'metadata': metadata,
+        'e2ee_version': e2eeVersion,
         if (senderName != null) 'sender_name': senderName,
         if (senderEmail != null) 'sender_email': senderEmail,
       };
