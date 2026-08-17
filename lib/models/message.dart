@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 class Message {
   const Message({
     required this.id,
@@ -5,6 +7,8 @@ class Message {
     required this.senderId,
     required this.body,
     required this.createdAt,
+    this.messageType = 'text',
+    this.metadata = const {},
     this.senderName,
     this.senderEmail,
   });
@@ -14,10 +18,22 @@ class Message {
   final String senderId;
   final String body;
   final DateTime createdAt;
+  final String messageType;
+  final Map<String, dynamic> metadata;
   final String? senderName;
   final String? senderEmail;
 
   factory Message.fromRow(List<Object?> row) {
+    final metadataRaw = row.length > 7 ? row[7] : null;
+    Map<String, dynamic> metadata = {};
+    if (metadataRaw is Map<String, dynamic>) {
+      metadata = metadataRaw;
+    } else if (metadataRaw is String && metadataRaw.isNotEmpty) {
+      metadata = Map<String, dynamic>.from(jsonDecode(metadataRaw) as Map);
+    } else if (metadataRaw is Map) {
+      metadata = Map<String, dynamic>.from(metadataRaw);
+    }
+
     return Message(
       id: row[0] as String,
       conversationId: row[1] as String,
@@ -26,6 +42,8 @@ class Message {
       createdAt: row[4] as DateTime,
       senderName: row.length > 5 ? row[5] as String? : null,
       senderEmail: row.length > 6 ? row[6] as String? : null,
+      messageType: row.length > 8 ? row[8] as String? ?? 'text' : 'text',
+      metadata: metadata,
     );
   }
 
@@ -35,7 +53,25 @@ class Message {
         'sender_id': senderId,
         'body': body,
         'created_at': createdAt.toIso8601String(),
+        'message_type': messageType,
+        'metadata': metadata,
         if (senderName != null) 'sender_name': senderName,
         if (senderEmail != null) 'sender_email': senderEmail,
       };
+
+  Message copyWith({
+    Map<String, dynamic>? metadata,
+  }) {
+    return Message(
+      id: id,
+      conversationId: conversationId,
+      senderId: senderId,
+      body: body,
+      createdAt: createdAt,
+      messageType: messageType,
+      metadata: metadata ?? this.metadata,
+      senderName: senderName,
+      senderEmail: senderEmail,
+    );
+  }
 }

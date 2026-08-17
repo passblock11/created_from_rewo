@@ -2,6 +2,7 @@
 .packages
 build/
 storage/
+uploads/
 .env
 
 # Firebase service account private keys (never commit)

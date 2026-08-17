@@ -9,6 +9,7 @@ import '../database/database.dart';
 import '../database/setup.dart';
 import '../models/message.dart';
 import '../services/fcm_push_service.dart';
+import '../utils/message_preview.dart';
 
 class ChatModule implements RewoModule {
   @override
@@ -43,6 +44,8 @@ class ChatModule implements RewoModule {
     app.post('/api/conversations/:id/members', _addMember, middleware: authMiddleware);
     app.get('/api/conversations/:id/messages', _listMessages, middleware: authMiddleware);
     app.post('/api/conversations/:id/messages', _sendMessage, middleware: authMiddleware);
+    app.post('/api/messages/:id/poll/vote', _votePoll, middleware: authMiddleware);
+    app.post('/api/messages/:id/event/rsvp', _rsvpEvent, middleware: authMiddleware);
 
     app.webSocket(
       '/ws/chat',
@@ -168,16 +171,15 @@ class ChatModule implements RewoModule {
     final userId = _requireUserId(ctx);
     final conversationId = ctx.param('id')!;
     final body = await ctx.jsonBody();
-    final text = (body['body'] as String? ?? '').trim();
-    if (text.isEmpty) throw BadRequestException('body is required');
 
     final db = ctx.container.resolve<Database>();
     await _requireMembership(db, conversationId, userId);
 
-    final message = await db.messages.create(
+    final message = await _createMessageFromPayload(
+      db: db,
       conversationId: conversationId,
       senderId: userId,
-      body: text,
+      payload: body,
     );
 
     final hub = ctx.container.resolve<ChatHub>();
@@ -189,6 +191,168 @@ class ChatModule implements RewoModule {
     );
 
     return message.toJson();
+  }
+
+  Future<Map<String, dynamic>> _votePoll(RequestContext ctx) async {
+    final userId = _requireUserId(ctx);
+    final messageId = ctx.param('id')!;
+    final body = await ctx.jsonBody();
+    final optionIndex = body['option_index'];
+    if (optionIndex is! int) {
+      throw BadRequestException('option_index is required');
+    }
+
+    final db = ctx.container.resolve<Database>();
+    final existing = await db.messages.findById(messageId);
+    if (existing == null) throw NotFoundException('Message not found');
+    if (existing.messageType != 'poll') {
+      throw BadRequestException('Message is not a poll');
+    }
+    await _requireMembership(db, existing.conversationId, userId);
+
+    final metadata = Map<String, dynamic>.from(existing.metadata);
+    final options = (metadata['options'] as List?)?.cast<String>() ?? [];
+    if (optionIndex < 0 || optionIndex >= options.length) {
+      throw BadRequestException('Invalid option_index');
+    }
+
+    final votes = Map<String, dynamic>.from(
+      metadata['votes'] as Map? ?? {},
+    );
+    final allowMultiple = metadata['allow_multiple'] == true;
+    if (allowMultiple) {
+      final current = (votes[userId] as List?)?.cast<int>() ?? [];
+      if (!current.contains(optionIndex)) {
+        votes[userId] = [...current, optionIndex];
+      }
+    } else {
+      votes[userId] = optionIndex;
+    }
+    metadata['votes'] = votes;
+
+    final updated = await db.messages.updateMetadata(
+      id: messageId,
+      metadata: metadata,
+    );
+    if (updated == null) throw NotFoundException('Message not found');
+
+    final hub = ctx.container.resolve<ChatHub>();
+    hub.broadcastMessageUpdate(updated);
+    return updated.toJson();
+  }
+
+  Future<Map<String, dynamic>> _rsvpEvent(RequestContext ctx) async {
+    final userId = _requireUserId(ctx);
+    final messageId = ctx.param('id')!;
+    final body = await ctx.jsonBody();
+    final status = (body['status'] as String? ?? '').trim().toLowerCase();
+    if (!{'accepted', 'declined', 'tentative'}.contains(status)) {
+      throw BadRequestException('status must be accepted, declined, or tentative');
+    }
+
+    final db = ctx.container.resolve<Database>();
+    final existing = await db.messages.findById(messageId);
+    if (existing == null) throw NotFoundException('Message not found');
+    if (existing.messageType != 'event') {
+      throw BadRequestException('Message is not an event');
+    }
+    await _requireMembership(db, existing.conversationId, userId);
+
+    final metadata = Map<String, dynamic>.from(existing.metadata);
+    final rsvps = Map<String, dynamic>.from(
+      metadata['rsvps'] as Map? ?? {},
+    );
+    rsvps[userId] = status;
+    metadata['rsvps'] = rsvps;
+
+    final updated = await db.messages.updateMetadata(
+      id: messageId,
+      metadata: metadata,
+    );
+    if (updated == null) throw NotFoundException('Message not found');
+
+    final hub = ctx.container.resolve<ChatHub>();
+    hub.broadcastMessageUpdate(updated);
+    return updated.toJson();
+  }
+
+  Future<Message> _createMessageFromPayload({
+    required Database db,
+    required String conversationId,
+    required String senderId,
+    required Map<String, dynamic> payload,
+  }) async {
+    final messageType = (payload['message_type'] as String? ?? 'text').trim();
+    if (!isSupportedMessageType(messageType)) {
+      throw BadRequestException('Unsupported message_type: $messageType');
+    }
+
+    final metadataRaw = payload['metadata'];
+    final metadata = metadataRaw is Map
+        ? Map<String, dynamic>.from(metadataRaw)
+        : <String, dynamic>{};
+
+    var text = (payload['body'] as String? ?? '').trim();
+    if (messageType == 'text') {
+      if (text.isEmpty) throw BadRequestException('body is required');
+    } else {
+      _validateMetadata(messageType, metadata);
+      if (text.isEmpty) {
+        text = previewForMessageType(messageType, metadata);
+      }
+      if (messageType == 'poll') {
+        metadata.putIfAbsent('votes', () => <String, dynamic>{});
+      }
+      if (messageType == 'event') {
+        metadata.putIfAbsent('rsvps', () => <String, dynamic>{});
+      }
+    }
+
+    return db.messages.create(
+      conversationId: conversationId,
+      senderId: senderId,
+      body: text,
+      messageType: messageType,
+      metadata: metadata,
+    );
+  }
+
+  void _validateMetadata(String type, Map<String, dynamic> metadata) {
+    switch (type) {
+      case 'image':
+      case 'video':
+      case 'audio':
+      case 'document':
+        if ((metadata['url'] as String? ?? '').isEmpty) {
+          throw BadRequestException('metadata.url is required');
+        }
+      case 'sticker':
+        if ((metadata['sticker_id'] as String? ?? '').isEmpty &&
+            (metadata['emoji'] as String? ?? '').isEmpty) {
+          throw BadRequestException('sticker_id or emoji is required');
+        }
+      case 'location':
+        if (metadata['latitude'] == null || metadata['longitude'] == null) {
+          throw BadRequestException('latitude and longitude are required');
+        }
+      case 'contact':
+        if ((metadata['name'] as String? ?? '').isEmpty) {
+          throw BadRequestException('contact name is required');
+        }
+      case 'poll':
+        final options = (metadata['options'] as List?)?.cast<String>() ?? [];
+        if ((metadata['question'] as String? ?? '').trim().isEmpty ||
+            options.length < 2) {
+          throw BadRequestException('poll requires question and at least 2 options');
+        }
+      case 'event':
+        if ((metadata['title'] as String? ?? '').trim().isEmpty ||
+            (metadata['start_at'] as String? ?? '').trim().isEmpty) {
+          throw BadRequestException('event requires title and start_at');
+        }
+      default:
+        break;
+    }
   }
 
   Future<void> _deliverMessage({
@@ -300,9 +464,8 @@ class ChatModule implements RewoModule {
 
         if (type == 'message') {
           final conversationId = payload['conversation_id'] as String? ?? '';
-          final text = (payload['body'] as String? ?? '').trim();
-          if (conversationId.isEmpty || text.isEmpty) {
-            _sendError(socket, 'conversation_id and body are required');
+          if (conversationId.isEmpty) {
+            _sendError(socket, 'conversation_id is required');
             return;
           }
           final isMember = await db.conversations.isMember(conversationId, userId);
@@ -311,10 +474,11 @@ class ChatModule implements RewoModule {
             return;
           }
           hub.subscribe(connection, conversationId);
-          final message = await db.messages.create(
+          final message = await _createMessageFromPayload(
+            db: db,
             conversationId: conversationId,
             senderId: userId,
-            body: text,
+            payload: payload,
           );
           socket.add(jsonEncode({
             'type': 'message',

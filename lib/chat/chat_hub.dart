@@ -63,6 +63,18 @@ class ChatHub {
     }
   }
 
+  void broadcastMessageUpdate(Message message) {
+    final payload = jsonEncode({
+      'type': 'message_updated',
+      'message': message.toJson(),
+    });
+    final connections =
+        _byConversation[message.conversationId]?.toList() ?? const [];
+    for (final connection in connections) {
+      connection.socket.add(payload);
+    }
+  }
+
   void sendToUser(String userId, Map<String, dynamic> payload) {
     final encoded = jsonEncode(payload);
     for (final connection in _bySocket.values) {
