@@ -85,11 +85,7 @@ class MessageRepository {
       Sql.named('''
         UPDATE messages
         SET deleted_at = NOW(),
-            deleted_by = @userId,
-            body = '',
-            metadata = '{}'::jsonb,
-            message_type = 'text',
-            e2ee_version = 0
+            deleted_by = @userId
         WHERE id = @messageId
           AND sender_id = @userId
           AND deleted_at IS NULL

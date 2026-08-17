@@ -55,15 +55,16 @@ class Message {
     );
   }
 
+  /// Client-facing JSON — redacts content when soft-deleted (governance keeps DB row).
   Map<String, dynamic> toJson() => {
         'id': id,
         'conversation_id': conversationId,
         'sender_id': senderId,
-        'body': body,
+        'body': isDeleted ? '' : body,
         'created_at': createdAt.toIso8601String(),
-        'message_type': messageType,
-        'metadata': metadata,
-        'e2ee_version': e2eeVersion,
+        'message_type': isDeleted ? 'text' : messageType,
+        'metadata': isDeleted ? const <String, dynamic>{} : metadata,
+        'e2ee_version': isDeleted ? 0 : e2eeVersion,
         if (deletedAt != null) 'deleted_at': deletedAt!.toIso8601String(),
         if (senderName != null) 'sender_name': senderName,
         if (senderEmail != null) 'sender_email': senderEmail,
