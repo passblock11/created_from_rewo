@@ -78,6 +78,35 @@ class CloudinaryService {
 
   final CloudinaryConfig _config;
 
+  Map<String, dynamic> createSignedUploadParams({
+    required String userId,
+    String resourceType = 'video',
+  }) {
+    if (!_config.isConfigured) {
+      throw StateError('Cloudinary is not configured');
+    }
+    final timestamp =
+        (DateTime.now().millisecondsSinceEpoch ~/ 1000).toString();
+    final folder = userId.isEmpty
+        ? _config.folder
+        : '${_config.folder}/$userId';
+    final signature = _sign({
+      'folder': folder,
+      'timestamp': timestamp,
+    });
+    final type = resourceType == 'video' ? 'video' : 'auto';
+    return {
+      'cloud_name': _config.cloudName,
+      'api_key': _config.apiKey,
+      'timestamp': timestamp,
+      'signature': signature,
+      'folder': folder,
+      'upload_url':
+          'https://api.cloudinary.com/v1_1/${_config.cloudName}/$type/upload',
+      'resource_type': type,
+    };
+  }
+
   Future<CloudinaryUploadResult> upload({
     required List<int> bytes,
     required String filename,

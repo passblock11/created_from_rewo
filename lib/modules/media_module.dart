@@ -18,6 +18,29 @@ class MediaModule implements RewoModule {
     app.singleton<CloudinaryService>(cloudinary);
 
     app.post('/api/media', _upload, middleware: authMiddleware);
+    app.post('/api/media/sign', _signUpload, middleware: authMiddleware);
+  }
+
+  static const _maxProxyBytes = 25 * 1024 * 1024;
+  static const _maxVideoBytes = 5 * 1024 * 1024 * 1024;
+
+  Future<Map<String, dynamic>> _signUpload(RequestContext ctx) async {
+    final userId = _requireUserId(ctx);
+    final body = await ctx.jsonBody();
+    final resourceType = (body['resource_type'] as String? ?? 'video').trim();
+    final size = body['size'];
+    if (size is int && size > _maxVideoBytes) {
+      throw BadRequestException('File too large (max 5 GB)');
+    }
+    if (size is num && size > _maxVideoBytes) {
+      throw BadRequestException('File too large (max 5 GB)');
+    }
+
+    final cloudinary = ctx.container.resolve<CloudinaryService>();
+    return cloudinary.createSignedUploadParams(
+      userId: userId,
+      resourceType: resourceType,
+    );
   }
 
   Future<Map<String, dynamic>> _upload(RequestContext ctx) async {
@@ -34,8 +57,11 @@ class MediaModule implements RewoModule {
       throw BadRequestException('file field is required');
     }
 
-    if (file.bytes.length > 25 * 1024 * 1024) {
-      throw BadRequestException('File too large (max 25 MB)');
+    if (file.bytes.length > _maxProxyBytes) {
+      throw BadRequestException(
+        'File too large for direct upload (max 25 MB). '
+        'Use /api/media/sign for large videos.',
+      );
     }
 
     final cloudinary = ctx.container.resolve<CloudinaryService>();

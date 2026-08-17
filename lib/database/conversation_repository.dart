@@ -15,7 +15,11 @@ class ConversationRepository {
                lm.body, lm.created_at,
                (SELECT COUNT(*)::int FROM conversation_members cm2
                 WHERE cm2.conversation_id = c.id) AS member_count,
-               peer.name, peer.email
+               peer.id, peer.name, peer.email,
+               (SELECT COUNT(*)::int FROM messages um
+                WHERE um.conversation_id = c.id
+                  AND um.sender_id <> @userId
+                  AND um.created_at > cm.last_read_at) AS unread_count
         FROM conversations c
         INNER JOIN conversation_members cm
           ON cm.conversation_id = c.id AND cm.user_id = @userId
@@ -27,7 +31,7 @@ class ConversationRepository {
           LIMIT 1
         ) lm ON TRUE
         LEFT JOIN LATERAL (
-          SELECT u.name, u.email
+          SELECT u.id, u.name, u.email
           FROM conversation_members cm_peer
           INNER JOIN users u ON u.id = cm_peer.user_id
           WHERE cm_peer.conversation_id = c.id
@@ -47,10 +51,29 @@ class ConversationRepository {
         lastMessageBody: row[5] as String?,
         lastMessageAt: row[6] as DateTime?,
         memberCount: row[7] as int?,
-        peerName: row[8] as String?,
-        peerEmail: row[9] as String?,
+        peerUserId: row[8] as String?,
+        peerName: row[9] as String?,
+        peerEmail: row[10] as String?,
+        unreadCount: row[11] as int? ?? 0,
       );
     }).toList();
+  }
+
+  Future<void> markAsRead({
+    required String conversationId,
+    required String userId,
+  }) async {
+    await _conn.execute(
+      Sql.named('''
+        UPDATE conversation_members
+        SET last_read_at = NOW()
+        WHERE conversation_id = @conversationId AND user_id = @userId
+      '''),
+      parameters: {
+        'conversationId': conversationId,
+        'userId': userId,
+      },
+    );
   }
 
   Future<Conversation?> findById(String id) async {

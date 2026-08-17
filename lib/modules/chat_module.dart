@@ -44,6 +44,7 @@ class ChatModule implements RewoModule {
     app.post('/api/conversations/:id/members', _addMember, middleware: authMiddleware);
     app.get('/api/conversations/:id/messages', _listMessages, middleware: authMiddleware);
     app.post('/api/conversations/:id/messages', _sendMessage, middleware: authMiddleware);
+    app.post('/api/conversations/:id/read', _markConversationRead, middleware: authMiddleware);
     app.post('/api/messages/:id/poll/vote', _votePoll, middleware: authMiddleware);
     app.post('/api/messages/:id/event/rsvp', _rsvpEvent, middleware: authMiddleware);
 
@@ -193,12 +194,29 @@ class ChatModule implements RewoModule {
     return message.toJson();
   }
 
+  Future<Map<String, dynamic>> _markConversationRead(RequestContext ctx) async {
+    final userId = _requireUserId(ctx);
+    final conversationId = ctx.param('id')!;
+    final db = ctx.container.resolve<Database>();
+    await _requireMembership(db, conversationId, userId);
+    await db.conversations.markAsRead(
+      conversationId: conversationId,
+      userId: userId,
+    );
+    return {'ok': true};
+  }
+
   Future<Map<String, dynamic>> _votePoll(RequestContext ctx) async {
     final userId = _requireUserId(ctx);
     final messageId = ctx.param('id')!;
     final body = await ctx.jsonBody();
     final optionIndex = body['option_index'];
-    if (optionIndex is! int) {
+    final parsedIndex = optionIndex is int
+        ? optionIndex
+        : optionIndex is num
+            ? optionIndex.toInt()
+            : null;
+    if (parsedIndex == null) {
       throw BadRequestException('option_index is required');
     }
 
@@ -212,7 +230,7 @@ class ChatModule implements RewoModule {
 
     final metadata = Map<String, dynamic>.from(existing.metadata);
     final options = (metadata['options'] as List?)?.cast<String>() ?? [];
-    if (optionIndex < 0 || optionIndex >= options.length) {
+    if (parsedIndex < 0 || parsedIndex >= options.length) {
       throw BadRequestException('Invalid option_index');
     }
 
@@ -222,11 +240,11 @@ class ChatModule implements RewoModule {
     final allowMultiple = metadata['allow_multiple'] == true;
     if (allowMultiple) {
       final current = (votes[userId] as List?)?.cast<int>() ?? [];
-      if (!current.contains(optionIndex)) {
-        votes[userId] = [...current, optionIndex];
+      if (!current.contains(parsedIndex)) {
+        votes[userId] = [...current, parsedIndex];
       }
     } else {
-      votes[userId] = optionIndex;
+      votes[userId] = parsedIndex;
     }
     metadata['votes'] = votes;
 
@@ -308,6 +326,12 @@ class ChatModule implements RewoModule {
       }
     }
 
+    await _sanitizeReplyMetadata(
+      metadata,
+      db: db,
+      conversationId: conversationId,
+    );
+
     return db.messages.create(
       conversationId: conversationId,
       senderId: senderId,
@@ -353,6 +377,37 @@ class ChatModule implements RewoModule {
       default:
         break;
     }
+  }
+
+  Future<void> _sanitizeReplyMetadata(
+    Map<String, dynamic> metadata, {
+    required Database db,
+    required String conversationId,
+  }) async {
+    final replyRaw = metadata['reply_to'];
+    if (replyRaw == null) return;
+    if (replyRaw is! Map) {
+      metadata.remove('reply_to');
+      return;
+    }
+    final reply = Map<String, dynamic>.from(replyRaw);
+    final replyId = reply['id'] as String?;
+    if (replyId == null || replyId.isEmpty) {
+      metadata.remove('reply_to');
+      return;
+    }
+    final original = await db.messages.findById(replyId);
+    if (original == null || original.conversationId != conversationId) {
+      metadata.remove('reply_to');
+      return;
+    }
+    metadata['reply_to'] = {
+      'id': original.id,
+      'body': original.body,
+      'sender_id': original.senderId,
+      'message_type': original.messageType,
+      if (reply['sender_name'] != null) 'sender_name': reply['sender_name'],
+    };
   }
 
   Future<void> _deliverMessage({
@@ -441,10 +496,41 @@ class ChatModule implements RewoModule {
             return;
           }
           hub.subscribe(connection, conversationId);
+          final members = await db.conversations.listMembers(conversationId);
+          for (final member in members) {
+            final memberId = member['id'] as String?;
+            if (memberId == null || memberId == userId) continue;
+            if (hub.isUserOnline(memberId)) {
+              socket.add(jsonEncode({
+                'type': 'user_online',
+                'user_id': memberId,
+              }));
+            }
+          }
           socket.add(jsonEncode({
             'type': 'subscribed',
             'conversation_id': conversationId,
           }));
+          return;
+        }
+
+        if (type == 'typing') {
+          final conversationId = payload['conversation_id'] as String? ?? '';
+          if (conversationId.isEmpty) {
+            _sendError(socket, 'conversation_id is required');
+            return;
+          }
+          final isMember = await db.conversations.isMember(conversationId, userId);
+          if (!isMember) {
+            _sendError(socket, 'Not a member of this conversation');
+            return;
+          }
+          hub.subscribe(connection, conversationId);
+          hub.broadcastTyping(
+            conversationId: conversationId,
+            userId: userId,
+            typing: payload['typing'] as bool? ?? true,
+          );
           return;
         }
 
