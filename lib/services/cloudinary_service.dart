@@ -94,7 +94,11 @@ class CloudinaryService {
       'folder': folder,
       'timestamp': timestamp,
     });
-    final type = resourceType == 'video' ? 'video' : 'auto';
+    final type = switch (resourceType) {
+      'video' => 'video',
+      'image' => 'image',
+      _ => 'auto',
+    };
     return {
       'cloud_name': _config.cloudName,
       'api_key': _config.apiKey,

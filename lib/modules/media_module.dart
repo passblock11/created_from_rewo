@@ -22,6 +22,7 @@ class MediaModule implements RewoModule {
   }
 
   static const _maxProxyBytes = 25 * 1024 * 1024;
+  static const _maxImageBytes = 300 * 1024 * 1024;
   static const _maxVideoBytes = 5 * 1024 * 1024 * 1024;
 
   Future<Map<String, dynamic>> _signUpload(RequestContext ctx) async {
@@ -29,11 +30,14 @@ class MediaModule implements RewoModule {
     final body = await ctx.jsonBody();
     final resourceType = (body['resource_type'] as String? ?? 'video').trim();
     final size = body['size'];
-    if (size is int && size > _maxVideoBytes) {
-      throw BadRequestException('File too large (max 5 GB)');
-    }
-    if (size is num && size > _maxVideoBytes) {
-      throw BadRequestException('File too large (max 5 GB)');
+    final bytes = size is int ? size : size is num ? size.toInt() : null;
+    if (bytes != null) {
+      if (resourceType == 'image' && bytes > _maxImageBytes) {
+        throw BadRequestException('File too large (max 300 MB)');
+      }
+      if (resourceType != 'image' && bytes > _maxVideoBytes) {
+        throw BadRequestException('File too large (max 5 GB)');
+      }
     }
 
     final cloudinary = ctx.container.resolve<CloudinaryService>();
