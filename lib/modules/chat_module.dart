@@ -401,12 +401,17 @@ class ChatModule implements RewoModule {
       metadata.remove('reply_to');
       return;
     }
+    final sender = await db.users.findById(original.senderId);
+    final senderName = reply['sender_name'] as String? ??
+        sender?.name ??
+        sender?.email;
     metadata['reply_to'] = {
       'id': original.id,
       'body': original.body,
       'sender_id': original.senderId,
       'message_type': original.messageType,
-      if (reply['sender_name'] != null) 'sender_name': reply['sender_name'],
+      if (senderName != null && senderName.isNotEmpty)
+        'sender_name': senderName,
     };
   }
 
