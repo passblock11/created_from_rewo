@@ -28,7 +28,9 @@ class StatusModule implements RewoModule {
     final userId = _requireUserId(ctx);
     final db = ctx.container.resolve<Database>();
     final statuses = await db.statuses.listActiveForViewer(userId);
-    return statuses.map((status) => status.toJson()).toList();
+    return List<Map<String, dynamic>>.from(
+      statuses.map((status) => status.toJson()),
+    );
   }
 
   Future<Map<String, dynamic>> _createStatus(RequestContext ctx) async {
@@ -84,7 +86,9 @@ class StatusModule implements RewoModule {
     }
 
     final viewers = await db.statuses.listViewers(statusId);
-    return viewers.map((viewer) => viewer.toJson()).toList();
+    return List<Map<String, dynamic>>.from(
+      viewers.map((viewer) => viewer.toJson()),
+    );
   }
 
   Future<Map<String, dynamic>> _deleteStatus(RequestContext ctx) async {

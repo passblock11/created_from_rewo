@@ -26,7 +26,9 @@ class ItemsModule implements RewoModule {
     app.get('/api/items', (ctx) async {
       final db = ctx.container.resolve<Database>();
       final items = await db.items.findAll();
-      return items.map((item) => item.toJson()).toList();
+      return List<Map<String, dynamic>>.from(
+        items.map((item) => item.toJson()),
+      );
     });
 
     app.post('/api/items', (ctx) async {

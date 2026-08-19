@@ -2,6 +2,18 @@ import 'package:postgres/postgres.dart';
 
 import '../database/id.dart';
 
+bool _pgBool(dynamic value) {
+  if (value is bool) return value;
+  if (value is num) return value != 0;
+  return false;
+}
+
+int _pgInt(dynamic value) {
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  return 0;
+}
+
 class StatusRecord {
   const StatusRecord({
     required this.id,
@@ -132,8 +144,8 @@ class StatusRepository {
         caption: row[6] as String?,
         createdAt: row[7] as DateTime,
         expiresAt: row[8] as DateTime,
-        viewCount: row[9] as int? ?? 0,
-        viewedByMe: row[10] as bool? ?? false,
+        viewCount: _pgInt(row[9]),
+        viewedByMe: _pgBool(row[10]),
       );
     }).toList();
   }
