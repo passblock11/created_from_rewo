@@ -24,7 +24,8 @@ class ConversationRepository {
         INNER JOIN conversation_members cm
           ON cm.conversation_id = c.id AND cm.user_id = @userId
         LEFT JOIN LATERAL (
-          SELECT m.body, m.created_at, m.e2ee_version, m.deleted_at, m.sender_id
+          SELECT m.body, m.created_at, m.e2ee_version, m.deleted_at, m.sender_id,
+                 m.message_type
           FROM messages m
           WHERE m.conversation_id = c.id
             AND NOT EXISTS (
@@ -52,6 +53,7 @@ class ConversationRepository {
       final conversation = Conversation.fromRow(row.sublist(0, 5));
       final deletedAt = row[8] as DateTime?;
       final lastSenderId = row[9] as String?;
+      final lastMessageType = row[10] as String?;
       return ConversationSummary(
         conversation: conversation,
         lastMessageBody: row[5] as String?,
@@ -59,11 +61,12 @@ class ConversationRepository {
         lastMessageE2ee: (row[7] as int? ?? 0) > 0,
         lastMessageDeleted: deletedAt != null,
         lastMessageSenderId: lastSenderId,
-        memberCount: row[10] as int?,
-        peerUserId: row[11] as String?,
-        peerName: row[12] as String?,
-        peerEmail: row[13] as String?,
-        unreadCount: row[14] as int? ?? 0,
+        lastMessageType: lastMessageType,
+        memberCount: row[11] as int?,
+        peerUserId: row[12] as String?,
+        peerName: row[13] as String?,
+        peerEmail: row[14] as String?,
+        unreadCount: row[15] as int? ?? 0,
       );
     }).toList();
   }

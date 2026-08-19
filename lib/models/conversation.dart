@@ -45,6 +45,7 @@ class ConversationSummary {
     this.lastMessageE2ee = false,
     this.lastMessageDeleted = false,
     this.lastMessageSenderId,
+    this.lastMessageType,
   });
 
   final Conversation conversation;
@@ -58,6 +59,7 @@ class ConversationSummary {
   final bool lastMessageE2ee;
   final bool lastMessageDeleted;
   final String? lastMessageSenderId;
+  final String? lastMessageType;
 
   Map<String, dynamic> toJson({String? viewerUserId}) => {
         ...conversation.toJson(),
@@ -73,5 +75,6 @@ class ConversationSummary {
         'last_message_deleted': lastMessageDeleted,
         if (lastMessageSenderId != null)
           'last_message_sender_id': lastMessageSenderId,
+        if (lastMessageType != null) 'last_message_type': lastMessageType,
       };
 }
