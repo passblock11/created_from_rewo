@@ -7,6 +7,7 @@ import 'e2ee_key_repository.dart';
 import 'item_repository.dart';
 import 'message_repository.dart';
 import 'refresh_token_repository.dart';
+import 'status_repository.dart';
 import 'user_repository.dart';
 
 class Database {
@@ -17,7 +18,8 @@ class Database {
         conversations = ConversationRepository(connection),
         messages = MessageRepository(connection),
         deviceTokens = DeviceTokenRepository(connection),
-        e2eeKeys = E2eeKeyRepository(connection);
+        e2eeKeys = E2eeKeyRepository(connection),
+        statuses = StatusRepository(connection);
 
   final Connection connection;
   final UserRepository users;
@@ -27,6 +29,7 @@ class Database {
   final MessageRepository messages;
   final DeviceTokenRepository deviceTokens;
   final E2eeKeyRepository e2eeKeys;
+  final StatusRepository statuses;
 
   static Future<Database> open(String connectionString) async {
     final connection = await openDatabaseConnection(connectionString);

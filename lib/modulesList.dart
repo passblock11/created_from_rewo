@@ -6,6 +6,7 @@ import 'modules/items_module.dart';
 import 'modules/media_module.dart';
 import 'modules/push_module.dart';
 import 'modules/e2ee_module.dart';
+import 'modules/status_module.dart';
 import 'modules/get_json_data.dart';
 
 class ModulesList {
@@ -15,6 +16,7 @@ class ModulesList {
         MediaModule(),
         E2eeModule(),
         ChatModule(),
+        StatusModule(),
         ItemsModule(),
         GetJsonDataModule(),
       ];

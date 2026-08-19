@@ -560,9 +560,7 @@ class ChatModule implements RewoModule {
             : 'Group')
         : senderName;
 
-    final pushBody = message.e2eeVersion > 0
-        ? 'New message'
-        : message.body;
+    final pushBody = message.body;
 
     final members = await db.conversations.listMembers(message.conversationId);
     for (final member in members) {
@@ -581,6 +579,7 @@ class ChatModule implements RewoModule {
             'sender_name': senderName,
             'body': pushBody,
             'e2ee': message.e2eeVersion > 0 ? '1' : '0',
+            'message_type': message.messageType,
             'conversation_type': conversation.type,
             'conversation_title': conversationTitle,
           },
