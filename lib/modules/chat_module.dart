@@ -564,8 +564,13 @@ class ChatModule implements RewoModule {
 
     final members = await db.conversations.listMembers(message.conversationId);
     for (final member in members) {
-      final memberId = member['id'] as String;
-      if (memberId == message.senderId) continue;
+      final memberId = member['id']?.toString();
+      if (memberId == null || memberId == message.senderId) continue;
+
+      // Skip push when the recipient is actively viewing this chat (socket subscribed).
+      if (hub.isUserViewingConversation(memberId, message.conversationId)) {
+        continue;
+      }
 
       final devices = await db.deviceTokens.listForUser(memberId);
       for (final device in devices) {

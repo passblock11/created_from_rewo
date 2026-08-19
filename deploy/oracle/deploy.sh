@@ -53,6 +53,15 @@ if [[ -f "${APP_DIR}/deploy/nginx/dart-serve-testing.conf" ]]; then
   systemctl reload nginx
 fi
 
+echo "==> Checking push notification config..."
+if ! grep -qE '^FCM_SERVICE_ACCOUNT_PATH=|^FCM_SERVER_KEY=' "${APP_DIR}/.env" 2>/dev/null; then
+  if ! compgen -G "${APP_DIR}/rewo-*.json" > /dev/null; then
+    echo "⚠️  WARNING: FCM not configured — message/call push notifications will NOT work."
+    echo "    Copy your Firebase service account JSON to ${APP_DIR}/rewo-*.json"
+    echo "    or set FCM_SERVICE_ACCOUNT_PATH in ${APP_DIR}/.env"
+  fi
+fi
+
 echo "==> Service status:"
 systemctl --no-pager status dart-serve-testing || true
 

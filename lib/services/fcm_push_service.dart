@@ -181,11 +181,18 @@ class FcmPushService {
 FcmPushService? tryCreateFcmPushServiceFromEnv() {
   final serverKey = Platform.environment['FCM_SERVER_KEY']?.trim();
   if (serverKey != null && serverKey.isNotEmpty) {
+    stderr.writeln('FCM: using legacy server key');
     return FcmPushService.legacy(serverKey);
   }
 
   final path = fcmServiceAccountPathFromEnv();
-  if (path == null) return null;
+  if (path == null) {
+    stderr.writeln(
+      'FCM: not configured — push notifications disabled. '
+      'Set FCM_SERVICE_ACCOUNT_PATH in .env or place rewo-*.json in the app directory.',
+    );
+    return null;
+  }
 
   final file = File(path);
   if (!file.existsSync()) {
@@ -200,6 +207,7 @@ FcmPushService? tryCreateFcmPushServiceFromEnv() {
       stderr.writeln('FCM service account JSON missing project_id');
       return null;
     }
+    stderr.writeln('FCM: enabled (project $projectId, key $path)');
     return FcmPushService.v1(
       serviceAccount: ServiceAccountCredentials.fromJson(json),
       projectId: projectId,
@@ -213,7 +221,24 @@ FcmPushService? tryCreateFcmPushServiceFromEnv() {
 String? fcmServiceAccountPathFromEnv() {
   for (final key in ['FCM_SERVICE_ACCOUNT_PATH', 'GOOGLE_APPLICATION_CREDENTIALS']) {
     final path = Platform.environment[key]?.trim();
-    if (path != null && path.isNotEmpty) return path;
+    if (path != null && path.isNotEmpty) {
+      final file = File(path);
+      if (file.existsSync()) return file.path;
+    }
+  }
+
+  // Auto-detect rewo-*.json in the server working directory (deploy VM).
+  try {
+    final cwd = Directory.current;
+    for (final entity in cwd.listSync(followLinks: false)) {
+      if (entity is! File) continue;
+      final name = entity.uri.pathSegments.last;
+      if (name.startsWith('rewo-') && name.endsWith('.json')) {
+        return entity.path;
+      }
+    }
+  } on Object {
+    // Ignore directory listing errors.
   }
   return null;
 }

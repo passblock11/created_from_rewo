@@ -14,6 +14,9 @@ class PushModule implements RewoModule {
     final pushService = tryCreateFcmPushServiceFromEnv();
     if (pushService != null) {
       app.singleton<FcmPushService>(pushService);
+      app.health.register('push', () async => pushService.enabled);
+    } else {
+      app.health.register('push', () async => false);
     }
 
     if (!hasDatabase(app)) {
