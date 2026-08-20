@@ -59,32 +59,53 @@ class FcmPushService {
   Future<void> sendDataMessage({
     required String deviceToken,
     required Map<String, String> data,
+    String? notificationTitle,
+    String? notificationBody,
   }) async {
     if (!enabled) return;
 
     if (_usesV1) {
-      await _sendV1(deviceToken: deviceToken, data: data);
+      await _sendV1(
+        deviceToken: deviceToken,
+        data: data,
+        notificationTitle: notificationTitle,
+        notificationBody: notificationBody,
+      );
     } else {
-      await _sendLegacy(deviceToken: deviceToken, data: data);
+      await _sendLegacy(
+        deviceToken: deviceToken,
+        data: data,
+        notificationTitle: notificationTitle,
+        notificationBody: notificationBody,
+      );
     }
   }
 
   Future<void> _sendLegacy({
     required String deviceToken,
     required Map<String, String> data,
+    String? notificationTitle,
+    String? notificationBody,
   }) async {
+    final payload = <String, dynamic>{
+      'to': deviceToken,
+      'priority': 'high',
+      'content_available': true,
+      'data': data,
+    };
+    if (notificationTitle != null && notificationBody != null) {
+      payload['notification'] = {
+        'title': notificationTitle,
+        'body': notificationBody,
+      };
+    }
     final response = await _client.post(
       Uri.parse('https://fcm.googleapis.com/fcm/send'),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'key=$_serverKey',
       },
-      body: jsonEncode({
-        'to': deviceToken,
-        'priority': 'high',
-        'content_available': true,
-        'data': data,
-      }),
+      body: jsonEncode(payload),
     );
 
     if (response.statusCode >= 400) {
@@ -97,8 +118,45 @@ class FcmPushService {
   Future<void> _sendV1({
     required String deviceToken,
     required Map<String, String> data,
+    String? notificationTitle,
+    String? notificationBody,
   }) async {
     final token = await _accessToken();
+    final message = <String, dynamic>{
+      'token': deviceToken,
+      'data': data,
+      'android': {
+        'priority': 'HIGH',
+        if (notificationTitle != null && notificationBody != null)
+          'notification': {
+            'channel_id': 'chat_messages',
+            'title': notificationTitle,
+            'body': notificationBody,
+          },
+      },
+      'apns': {
+        'headers': {'apns-priority': '10'},
+        'payload': {
+          'aps': {
+            'content-available': 1,
+            if (notificationTitle != null && notificationBody != null) ...{
+              'alert': {
+                'title': notificationTitle,
+                'body': notificationBody,
+              },
+              'sound': 'default',
+            },
+          },
+        },
+      },
+    };
+    if (notificationTitle != null && notificationBody != null) {
+      message['notification'] = {
+        'title': notificationTitle,
+        'body': notificationBody,
+      };
+    }
+
     final response = await _client.post(
       Uri.parse(
         'https://fcm.googleapis.com/v1/projects/$_projectId/messages:send',
@@ -107,19 +165,7 @@ class FcmPushService {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
       },
-      body: jsonEncode({
-        'message': {
-          'token': deviceToken,
-          'data': data,
-          'android': {'priority': 'HIGH'},
-          'apns': {
-            'headers': {'apns-priority': '10'},
-            'payload': {
-              'aps': {'content-available': 1},
-            },
-          },
-        },
-      }),
+      body: jsonEncode({'message': message}),
     );
 
     if (response.statusCode >= 400) {
@@ -171,8 +217,15 @@ class FcmPushService {
   Future<void> sendChatMessage({
     required String deviceToken,
     required Map<String, String> data,
+    String? notificationTitle,
+    String? notificationBody,
   }) {
-    return sendDataMessage(deviceToken: deviceToken, data: data);
+    return sendDataMessage(
+      deviceToken: deviceToken,
+      data: data,
+      notificationTitle: notificationTitle,
+      notificationBody: notificationBody,
+    );
   }
 
   void dispose() => _client.close();

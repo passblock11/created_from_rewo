@@ -561,21 +561,27 @@ class ChatModule implements RewoModule {
         : senderName;
 
     final pushBody = message.body;
+    final notificationBody = message.e2eeVersion > 0
+        ? previewForMessageType(message.messageType, message.metadata)
+        : (message.body.trim().isNotEmpty
+            ? message.body
+            : previewForMessageType(message.messageType, message.metadata));
 
     final members = await db.conversations.listMembers(message.conversationId);
     for (final member in members) {
       final memberId = member['id']?.toString();
       if (memberId == null || memberId == message.senderId) continue;
 
-      // Skip push when the recipient is actively viewing this chat (socket subscribed).
-      if (hub.isUserViewingConversation(memberId, message.conversationId)) {
-        continue;
-      }
-
       final devices = await db.deviceTokens.listForUser(memberId);
       for (final device in devices) {
         await push.sendChatMessage(
           deviceToken: device.token,
+          notificationTitle: conversation.type == 'group'
+              ? conversationTitle
+              : senderName,
+          notificationBody: conversation.type == 'group'
+              ? '$senderName: $notificationBody'
+              : notificationBody,
           data: {
             'type': 'chat_message',
             'conversation_id': message.conversationId,
