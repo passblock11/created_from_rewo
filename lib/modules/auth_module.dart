@@ -3,8 +3,10 @@ import 'package:rewo/rewo.dart';
 import '../auth/password.dart';
 import '../auth/token_service.dart';
 import '../auth/validators.dart';
+import '../chat/chat_hub.dart';
 import '../database/database.dart';
 import '../database/setup.dart';
+import '../models/user.dart';
 
 class AuthModule implements RewoModule {
   @override
@@ -168,13 +170,25 @@ class AuthModule implements RewoModule {
 
     final body = await ctx.jsonBody();
     final name = (body['name'] as String?)?.trim();
+    final avatarUrl = (body['avatar_url'] as String?)?.trim();
 
     final db = ctx.container.resolve<Database>();
     final user = await db.users.updateProfile(
       id: userId,
       name: name == null || name.isEmpty ? null : name,
+      avatarUrl: avatarUrl == null || avatarUrl.isEmpty ? null : avatarUrl,
     );
+    _broadcastProfileUpdated(ctx, user);
     return user.toJson();
+  }
+
+  void _broadcastProfileUpdated(RequestContext ctx, User user) {
+    if (!ctx.container.isRegistered<ChatHub>()) return;
+    final hub = ctx.container.resolve<ChatHub>();
+    hub.broadcastStatusEvent({
+      'type': 'profile_updated',
+      'user': user.toJson(),
+    });
   }
 
   Future<List<Map<String, dynamic>>> _listUsers(RequestContext ctx) async {

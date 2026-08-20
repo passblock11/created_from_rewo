@@ -41,6 +41,7 @@ class ConversationSummary {
     this.peerUserId,
     this.peerName,
     this.peerEmail,
+    this.peerAvatarUrl,
     this.unreadCount = 0,
     this.lastMessageE2ee = false,
     this.lastMessageDeleted = false,
@@ -55,6 +56,7 @@ class ConversationSummary {
   final String? peerUserId;
   final String? peerName;
   final String? peerEmail;
+  final String? peerAvatarUrl;
   final int unreadCount;
   final bool lastMessageE2ee;
   final bool lastMessageDeleted;
@@ -70,6 +72,8 @@ class ConversationSummary {
         if (peerUserId != null) 'peer_user_id': peerUserId,
         if (peerName != null) 'peer_name': peerName,
         if (peerEmail != null) 'peer_email': peerEmail,
+        if (peerAvatarUrl != null && peerAvatarUrl!.isNotEmpty)
+          'peer_avatar_url': peerAvatarUrl,
         'unread_count': unreadCount,
         'last_message_e2ee': lastMessageE2ee,
         'last_message_deleted': lastMessageDeleted,

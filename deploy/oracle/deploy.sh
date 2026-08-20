@@ -25,6 +25,11 @@ sudo -u "${APP_USER}" git reset --hard origin/main
 echo "==> Installing dependencies..."
 sudo -u "${APP_USER}" dart pub get
 
+if grep -qE '^RATE_LIMIT=100$' "${APP_DIR}/.env" 2>/dev/null; then
+  echo "==> Raising RATE_LIMIT from 100 to 1000..."
+  sed -i 's/^RATE_LIMIT=100$/RATE_LIMIT=1000/' "${APP_DIR}/.env"
+fi
+
 echo "==> Running database migrations..."
 sudo -u "${APP_USER}" dart run bin/migrate.dart
 

@@ -87,7 +87,7 @@ JWT_SECRET=use-a-long-random-string-at-least-32-chars
 LOG_REQUESTS=true
 SERVER_ENGINE=shelf
 STORAGE_PATH=/opt/dart-serve-testing/storage
-RATE_LIMIT=100
+RATE_LIMIT=1000
 
 DATABASE_URL=postgresql://...@....supabase.com:6543/postgres?pgbouncer=true
 DIRECT_URL=postgresql://...@....supabase.com:5432/postgres

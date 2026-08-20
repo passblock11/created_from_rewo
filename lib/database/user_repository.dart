@@ -8,11 +8,13 @@ class UserRepository {
 
   final Connection _conn;
 
+  static const _selectCols =
+      'id, email, password_hash, name, avatar_url, created_at';
+
   Future<User?> findByEmail(String email) async {
     final result = await _conn.execute(
       Sql.named(
-        'SELECT id, email, password_hash, name, created_at '
-        'FROM users WHERE email = @email LIMIT 1',
+        'SELECT $_selectCols FROM users WHERE email = @email LIMIT 1',
       ),
       parameters: {'email': email},
     );
@@ -23,8 +25,7 @@ class UserRepository {
   Future<User?> findById(String id) async {
     final result = await _conn.execute(
       Sql.named(
-        'SELECT id, email, password_hash, name, created_at '
-        'FROM users WHERE id = @id LIMIT 1',
+        'SELECT $_selectCols FROM users WHERE id = @id LIMIT 1',
       ),
       parameters: {'id': id},
     );
@@ -42,7 +43,7 @@ class UserRepository {
       Sql.named(
         'INSERT INTO users (id, email, password_hash, name) '
         'VALUES (@id, @email, @password_hash, @name) '
-        'RETURNING id, email, password_hash, name, created_at',
+        'RETURNING $_selectCols',
       ),
       parameters: {
         'id': id,
@@ -57,14 +58,23 @@ class UserRepository {
   Future<User> updateProfile({
     required String id,
     String? name,
+    String? avatarUrl,
   }) async {
     final result = await _conn.execute(
       Sql.named(
-        'UPDATE users SET name = COALESCE(@name, name) '
+        'UPDATE users SET '
+        'name = CASE WHEN @set_name THEN @name ELSE name END, '
+        'avatar_url = CASE WHEN @set_avatar THEN @avatar_url ELSE avatar_url END '
         'WHERE id = @id '
-        'RETURNING id, email, password_hash, name, created_at',
+        'RETURNING $_selectCols',
       ),
-      parameters: {'id': id, 'name': name},
+      parameters: {
+        'id': id,
+        'set_name': name != null,
+        'name': name,
+        'set_avatar': avatarUrl != null,
+        'avatar_url': avatarUrl,
+      },
     );
     if (result.isEmpty) {
       throw StateError('User $id not found');
@@ -84,14 +94,12 @@ class UserRepository {
     final result = await _conn.execute(
       Sql.named(
         hasQuery
-            ? 'SELECT id, email, password_hash, name, created_at '
-                'FROM users '
+            ? 'SELECT $_selectCols FROM users '
                 'WHERE id != @exclude_user_id '
                 'AND (email ILIKE @pattern OR COALESCE(name, \'\') ILIKE @pattern) '
                 'ORDER BY created_at DESC '
                 'LIMIT @limit'
-            : 'SELECT id, email, password_hash, name, created_at '
-                'FROM users '
+            : 'SELECT $_selectCols FROM users '
                 'WHERE id != @exclude_user_id '
                 'ORDER BY created_at DESC '
                 'LIMIT @limit',

@@ -156,6 +156,20 @@ class ChatHub {
     }
   }
 
+  /// Notify all connected clients (e.g. new status updates).
+  void broadcastStatusEvent(
+    Map<String, dynamic> payload, {
+    String? excludeUserId,
+  }) {
+    final encoded = jsonEncode(payload);
+    for (final connection in _bySocket.values) {
+      if (excludeUserId != null && connection.userId == excludeUserId) {
+        continue;
+      }
+      connection.socket.add(encoded);
+    }
+  }
+
   /// True when the user has an active socket subscribed to this conversation
   /// (they are viewing the chat — skip push notification).
   bool isUserViewingConversation(String userId, String conversationId) {

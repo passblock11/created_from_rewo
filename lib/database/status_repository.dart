@@ -19,6 +19,7 @@ class StatusRecord {
     required this.id,
     required this.userId,
     required this.userName,
+    this.userAvatarUrl,
     required this.mediaUrl,
     required this.mediaType,
     required this.createdAt,
@@ -31,6 +32,7 @@ class StatusRecord {
   final String id;
   final String userId;
   final String userName;
+  final String? userAvatarUrl;
   final String mediaUrl;
   final String mediaType;
   final String? caption;
@@ -43,6 +45,8 @@ class StatusRecord {
         'id': id,
         'user_id': userId,
         'user_name': userName,
+        if (userAvatarUrl != null && userAvatarUrl!.isNotEmpty)
+          'user_avatar_url': userAvatarUrl,
         'media_url': mediaUrl,
         'media_type': mediaType,
         if (caption != null) 'caption': caption,
@@ -57,16 +61,20 @@ class StatusViewerRecord {
   const StatusViewerRecord({
     required this.userId,
     required this.userName,
+    this.userAvatarUrl,
     required this.viewedAt,
   });
 
   final String userId;
   final String userName;
+  final String? userAvatarUrl;
   final DateTime viewedAt;
 
   Map<String, dynamic> toJson() => {
         'user_id': userId,
         'user_name': userName,
+        if (userAvatarUrl != null && userAvatarUrl!.isNotEmpty)
+          'user_avatar_url': userAvatarUrl,
         'viewed_at': viewedAt.toIso8601String(),
       };
 }
@@ -79,6 +87,7 @@ class StatusRepository {
   Future<StatusRecord> create({
     required String userId,
     required String userName,
+    String? userAvatarUrl,
     required String mediaUrl,
     required String mediaType,
     String? caption,
@@ -103,6 +112,7 @@ class StatusRepository {
       id: row[0] as String,
       userId: row[1] as String,
       userName: userName,
+      userAvatarUrl: userAvatarUrl,
       mediaUrl: row[2] as String,
       mediaType: row[3] as String,
       caption: row[4] as String?,
@@ -114,7 +124,7 @@ class StatusRepository {
   Future<List<StatusRecord>> listActiveForViewer(String viewerId) async {
     final result = await _conn.execute(
       Sql.named('''
-        SELECT s.id, s.user_id, u.name, u.email, s.media_url, s.media_type, s.caption,
+        SELECT s.id, s.user_id, u.name, u.email, u.avatar_url, s.media_url, s.media_type, s.caption,
                s.created_at, s.expires_at,
                (SELECT COUNT(*)::int FROM status_views v WHERE v.status_id = s.id) AS view_count,
                EXISTS(
@@ -124,6 +134,19 @@ class StatusRepository {
         FROM statuses s
         INNER JOIN users u ON u.id = s.user_id
         WHERE s.expires_at > NOW()
+          AND (
+            s.user_id = @viewerId
+            OR EXISTS (
+              SELECT 1
+              FROM conversation_members cm_self
+              INNER JOIN conversation_members cm_peer
+                ON cm_self.conversation_id = cm_peer.conversation_id
+              INNER JOIN conversations c ON c.id = cm_self.conversation_id
+              WHERE cm_self.user_id = @viewerId
+                AND cm_peer.user_id = s.user_id
+                AND c.type = 'dm'
+            )
+          )
         ORDER BY s.created_at DESC
       '''),
       parameters: {'viewerId': viewerId},
@@ -139,13 +162,14 @@ class StatusRepository {
         id: row[0] as String,
         userId: row[1] as String,
         userName: userName,
-        mediaUrl: row[4] as String,
-        mediaType: row[5] as String? ?? 'image',
-        caption: row[6] as String?,
-        createdAt: row[7] as DateTime,
-        expiresAt: row[8] as DateTime,
-        viewCount: _pgInt(row[9]),
-        viewedByMe: _pgBool(row[10]),
+        userAvatarUrl: row[4] as String?,
+        mediaUrl: row[5] as String,
+        mediaType: row[6] as String? ?? 'image',
+        caption: row[7] as String?,
+        createdAt: row[8] as DateTime,
+        expiresAt: row[9] as DateTime,
+        viewCount: _pgInt(row[10]),
+        viewedByMe: _pgBool(row[11]),
       );
     }).toList();
   }
@@ -198,7 +222,7 @@ class StatusRepository {
   Future<List<StatusViewerRecord>> listViewers(String statusId) async {
     final result = await _conn.execute(
       Sql.named('''
-        SELECT u.id, u.name, u.email, v.viewed_at
+        SELECT u.id, u.name, u.email, u.avatar_url, v.viewed_at
         FROM status_views v
         INNER JOIN users u ON u.id = v.viewer_id
         WHERE v.status_id = @statusId
@@ -216,7 +240,8 @@ class StatusRepository {
       return StatusViewerRecord(
         userId: row[0] as String,
         userName: userName,
-        viewedAt: row[3] as DateTime,
+        userAvatarUrl: row[3] as String?,
+        viewedAt: row[4] as DateTime,
       );
     }).toList();
   }

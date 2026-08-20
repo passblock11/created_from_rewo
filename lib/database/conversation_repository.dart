@@ -16,7 +16,7 @@ class ConversationRepository {
                lm.message_type,
                (SELECT COUNT(*)::int FROM conversation_members cm2
                 WHERE cm2.conversation_id = c.id) AS member_count,
-               peer.id, peer.name, peer.email,
+               peer.id, peer.name, peer.email, peer.avatar_url,
                (SELECT COUNT(*)::int FROM messages um
                 WHERE um.conversation_id = c.id
                   AND um.sender_id <> @userId
@@ -37,7 +37,7 @@ class ConversationRepository {
           LIMIT 1
         ) lm ON TRUE
         LEFT JOIN LATERAL (
-          SELECT u.id, u.name, u.email
+          SELECT u.id, u.name, u.email, u.avatar_url
           FROM conversation_members cm_peer
           INNER JOIN users u ON u.id = cm_peer.user_id
           WHERE cm_peer.conversation_id = c.id
@@ -67,7 +67,8 @@ class ConversationRepository {
         peerUserId: row[12] as String?,
         peerName: row[13] as String?,
         peerEmail: row[14] as String?,
-        unreadCount: row[15] as int? ?? 0,
+        peerAvatarUrl: row[15] as String?,
+        unreadCount: row[16] as int? ?? 0,
       );
     }).toList();
   }
@@ -189,7 +190,7 @@ class ConversationRepository {
   Future<List<Map<String, dynamic>>> listMembers(String conversationId) async {
     final result = await _conn.execute(
       Sql.named('''
-        SELECT u.id, u.email, u.name, cm.joined_at, cm.last_read_at
+        SELECT u.id, u.email, u.name, u.avatar_url, cm.joined_at, cm.last_read_at
         FROM conversation_members cm
         INNER JOIN users u ON u.id = cm.user_id
         WHERE cm.conversation_id = @conversationId
@@ -202,8 +203,9 @@ class ConversationRepository {
               'id': row[0],
               'email': row[1],
               'name': row[2],
-              'joined_at': (row[3] as DateTime).toIso8601String(),
-              'last_read_at': (row[4] as DateTime).toIso8601String(),
+              'avatar_url': row[3],
+              'joined_at': (row[4] as DateTime).toIso8601String(),
+              'last_read_at': (row[5] as DateTime).toIso8601String(),
             })
         .toList();
   }
