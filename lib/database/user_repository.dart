@@ -54,6 +54,24 @@ class UserRepository {
     return User.fromRow(result.first);
   }
 
+  Future<User> updateProfile({
+    required String id,
+    String? name,
+  }) async {
+    final result = await _conn.execute(
+      Sql.named(
+        'UPDATE users SET name = COALESCE(@name, name) '
+        'WHERE id = @id '
+        'RETURNING id, email, password_hash, name, created_at',
+      ),
+      parameters: {'id': id, 'name': name},
+    );
+    if (result.isEmpty) {
+      throw StateError('User $id not found');
+    }
+    return User.fromRow(result.first);
+  }
+
   Future<List<User>> list({
     required String excludeUserId,
     String? query,

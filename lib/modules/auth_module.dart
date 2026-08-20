@@ -32,6 +32,11 @@ class AuthModule implements RewoModule {
       _me,
       middleware: [JwtMiddleware(tokens.accessJwt).handler],
     );
+    app.patch(
+      '/api/auth/me',
+      (ctx) => _updateMe(ctx, tokens),
+      middleware: [JwtMiddleware(tokens.accessJwt).handler],
+    );
     app.get(
       '/api/users',
       _listUsers,
@@ -151,6 +156,24 @@ class AuthModule implements RewoModule {
     final user = await db.users.findById(userId);
     if (user == null) throw NotFoundException('User not found');
 
+    return user.toJson();
+  }
+
+  Future<Map<String, dynamic>> _updateMe(
+    RequestContext ctx,
+    TokenService tokens,
+  ) async {
+    final userId = ctx.userId;
+    if (userId == null) throw UnauthorizedException('Not authenticated');
+
+    final body = await ctx.jsonBody();
+    final name = (body['name'] as String?)?.trim();
+
+    final db = ctx.container.resolve<Database>();
+    final user = await db.users.updateProfile(
+      id: userId,
+      name: name == null || name.isEmpty ? null : name,
+    );
     return user.toJson();
   }
 

@@ -13,6 +13,7 @@ class ConversationRepository {
       Sql.named('''
         SELECT c.id, c.type, c.title, c.created_by, c.created_at,
                lm.body, lm.created_at, lm.e2ee_version, lm.deleted_at, lm.sender_id,
+               lm.message_type,
                (SELECT COUNT(*)::int FROM conversation_members cm2
                 WHERE cm2.conversation_id = c.id) AS member_count,
                peer.id, peer.name, peer.email,
